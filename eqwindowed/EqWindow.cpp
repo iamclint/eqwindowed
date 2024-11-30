@@ -50,18 +50,5 @@ namespace EqWindowed
 		UpdateWindow(Handle);  // This forces the window to be updated and painted
 		message_thd = std::thread(&EqWindow::MessageLoop, this);
 		message_thd.detach();
-		//*(HWND*)0x807e04 = Handle;
-		//DDSURFACEDESC2 ddsd = {};
-		//ddsd.dwSize = sizeof(ddsd);
-		//ddsd.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT;
-		//ddsd.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-		//ddsd.dwWidth = 800; // Width of your custom window
-		//ddsd.dwHeight = 600; // Height of your custom window
-
-		//HRESULT hr = pDD->CreateSurface(&ddsd, &Surface, nullptr);
-		//if (FAILED(hr)) {
-		//	MessageBox(hWnd, "Failed to create custom surface!", "Error", MB_ICONERROR);
-		//}
-
 	}
 }
