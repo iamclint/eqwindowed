@@ -33,5 +33,6 @@ namespace EqWindowed
 		Console::CreateConsole();
 		std::cout << "Init d3dx " << std::endl;
 		hook_Direct3DCreate8 = IATHook(handle, "d3d8.dll", "Direct3DCreate8", hDirect3DCreate8);
+		hook_SetWindowPos = IATHook(handle, "user32.dll", "SetWindowPos", hSetWindowPos);
 	}
 }

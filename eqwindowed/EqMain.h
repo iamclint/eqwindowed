@@ -43,16 +43,25 @@ namespace EqWindowed
     //};
     // Struct to manage the original vtable and the hook
 
-    
+    struct Resolution
+    {
+        LONG width;
+        LONG height;
+    };
     HRESULT WINAPI hDirectDrawCreate(GUID FAR* lpGUID, LPDIRECTDRAW* lplpDD, IUnknown FAR* pUnkOuter);
     class EqMain
     {
     public:
+        Resolution res = { 1024, 768 };
         IDirectDraw* originalDirectDraw;
         IDirectDrawSurface* PrimarySurface = nullptr;
         IDirectDrawSurface* SecondarySurface = nullptr;
         IATHook hook_CreateDirectDraw;
         IATHook hook_CreateWindow;
+        IATHook hook_SetWindowPos;
+        IATHook hook_SetCapture;
+        IATHook hook_SetWindowLongA;
+        IATHook hook_DestroyWindow;
         VTableHook hook_SetCooperativeLevel;
         VTableHook hook_SetDisplayMode;
         VTableHook hook_CreateSurface;

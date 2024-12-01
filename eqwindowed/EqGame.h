@@ -9,6 +9,11 @@ namespace EqWindowed
     public:
         IATHook hook_LoadLibrary;
         IATHook hook_CreateWindow;
+        IATHook hook_SetWindowPos;
+        IATHook hook_SetCapture;
+        IATHook hook_SetWindowLongA;
+        IATHook hook_ShowWindow;
+        IATHook hook_DestroyWindow;
         EqGame(HMODULE handle);
     };
 }

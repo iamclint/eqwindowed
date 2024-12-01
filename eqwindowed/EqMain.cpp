@@ -11,21 +11,34 @@
 namespace EqWindowed
 {
 	HRESULT WINAPI hCreateSurface(IDirectDraw* lplpDD, LPDDSURFACEDESC lpDDSurfaceDesc, LPDIRECTDRAWSURFACE FAR* lplpDDSurface, IUnknown FAR* pUnkOuter);
-
-
-	/*
-	* Return our hwnd here for whatever window eqmain is trying to create, 
-	*/
-	HWND WINAPI hCreateWindowEx(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
-	{
-		std::cout << "Create window ex hook" << std::endl;
-		return EqWindowed::Wnd->Handle;
-		return EqMainHooks->hook_CreateWindow.original(hCreateWindowEx)(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
-	}
+//	HWND WINAPI hSetCapture(HWND hWnd)
+//	{
+//		std::cout << "SetCapture from eqmain.dll" << std::endl;
+//		return 0;
+//	}
+//	HRESULT WINAPI hSetWindowPos(HWND hWnd,HWND hWndInsertAfter,int X,int Y,int cx,int cy,UINT uFlags)
+//	{
+//		std::cout << "SetWindowPos from eqmain.dll" << std::endl;
+//		return 1;
+//	}
+//	/*
+//	* Return our hwnd here for whatever window eqmain is trying to create, 
+//	*/
+//	HWND WINAPI hCreateWindowEx(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
+//	{
+//		std::cout << "CreateWindow from eqmain.dll" << std::endl;
+//		if ((dwStyle & WS_CHILD))
+//			dwStyle &= ~WS_CHILD;
+//		if ((dwExStyle & WS_EX_TOPMOST))
+//			dwExStyle &= ~WS_EX_TOPMOST;
+////		std::cout << "Create window ex hook" << std::endl;
+////		return EqWindowed::Wnd->Handle;
+//		return EqMainHooks->hook_CreateWindow.original(hCreateWindowEx)(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+//	}
 
     HRESULT WINAPI hDirectDrawCreate(GUID FAR* lpGUID, LPDIRECTDRAW* lplpDD, IUnknown FAR* pUnkOuter)
     {
-		std::cout << "DirectDraw Create" << std::endl;
+		std::cout << "DirectDraw Create " << std::hex << lpGUID << " " << lplpDD << " " << pUnkOuter << std::endl;
 		HRESULT rval = EqMainHooks->hook_CreateDirectDraw.original(hDirectDrawCreate)(lpGUID, lplpDD, pUnkOuter);
 		if (lplpDD)
 		{
@@ -37,27 +50,48 @@ namespace EqWindowed
 	HRESULT WINAPI hSetCooperativeLevel(IDirectDraw* lplpDD, HWND hWnd, DWORD dwFlags) 
 	{
 		std::cout << "Set cooperative level" << std::endl;
-		hWnd = EqWindowed::Wnd->Handle;
+		if (hWnd)
+		{
+			SetWindowLong(hWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+			SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, EqMainHooks->res.width, EqMainHooks->res.height, SWP_SHOWWINDOW);
+		}
+		//hWnd = 0;// EqWindowed::Wnd->Handle;
 		dwFlags = DDSCL_NORMAL;
+		
 		return EqMainHooks->hook_SetCooperativeLevel.original(hSetCooperativeLevel)(lplpDD, hWnd, dwFlags);
 	}
 
 	HRESULT WINAPI hSetDisplayMode(IDirectDraw* lplpDD, DWORD dwWidth, DWORD dwHeight, DWORD dwBpp) 
 	{
 		std::cout << "Set Display Mode Width: " << std::dec << dwWidth << " Height: " << dwHeight << " dwBPP " << dwBpp << std::endl;
-		dwWidth = 1024;
-		dwHeight = 768;
+		//dwWidth = 1024;
+		//dwHeight = 768;
+		//dwBpp = 32;
 		return EqMainHooks->hook_SetDisplayMode.original(hSetDisplayMode)(lplpDD, dwWidth, dwHeight, dwBpp);
 	}
 
 	HRESULT WINAPI hFlip(IDirectDrawSurface* surface, DWORD flags)
 	{
+		std::cout << "Flip" << std::endl;
+
+		if (EqMainHooks->PrimarySurface == nullptr || EqMainHooks->SecondarySurface == nullptr) {
+			std::cerr << "Primary or Secondary surface is null!" << std::endl;
+			return DDERR_INVALIDPARAMS;
+		}
+		DDSURFACEDESC desc;
+		ZeroMemory(&desc, sizeof(DDSURFACEDESC));
+		desc.dwSize = sizeof(DDSURFACEDESC);
+		if (EqMainHooks->SecondarySurface->GetSurfaceDesc(&desc) == DD_OK) {
+			if (EqMainHooks->res.width > desc.dwWidth || EqMainHooks->res.height > desc.dwHeight) {
+				std::cerr << "Source rectangle exceeds secondary surface bounds!" << std::endl;
+				return DDERR_INVALIDRECT;
+			}
+		}
+
 		if (surface == EqMainHooks->PrimarySurface)
 		{
-			// Check if either surface is lost
 			if (EqMainHooks->SecondarySurface->IsLost() == DDERR_SURFACELOST)
 			{
-				// Attempt to restore the secondary surface
 				HRESULT result = EqMainHooks->SecondarySurface->Restore();
 				if (result != DD_OK)
 				{
@@ -68,7 +102,6 @@ namespace EqWindowed
 
 			if (EqMainHooks->PrimarySurface->IsLost() == DDERR_SURFACELOST)
 			{
-				// Attempt to restore the primary surface
 				HRESULT result = EqMainHooks->PrimarySurface->Restore();
 				if (result != DD_OK)
 				{
@@ -79,12 +112,18 @@ namespace EqWindowed
 		}
 		if (surface == EqMainHooks->PrimarySurface)
 		{
+			if (EqMainHooks->SecondarySurface->IsLost() == DDERR_SURFACELOST)
+			{
+				std::cout << "Secondary surface is still lost" << std::endl;
+			}
+			if (EqMainHooks->PrimarySurface->IsLost() == DDERR_SURFACELOST)
+			{
+				std::cout << "Primary surface is still lost" << std::endl;
+			}
 			if (!(EqMainHooks->SecondarySurface->IsLost()==DDERR_SURFACELOST) && !(EqMainHooks->PrimarySurface->IsLost() == DDERR_SURFACELOST))
 			{
-
-				RECT srcRect = { 0, 0, 1024, 768 }; // Source rectangle
-				RECT destRect = { 0, 0, 1024, 768 }; // Destination rectangle (adjust as needed)
-
+				RECT srcRect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // Source rectangle
+				RECT destRect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // Destination rectangle (adjust as needed)
 				HRESULT result = EqMainHooks->PrimarySurface->Blt(&destRect, EqMainHooks->SecondarySurface, &srcRect, DDBLT_WAIT, nullptr);
 				if (result != DD_OK)
 					std::cout << "BLT failed " << std::hex << result << std::endl;
@@ -94,11 +133,11 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hGetAttachedSurface(IDirectDrawSurface* surface, DDSCAPS* caps, LPDIRECTDRAWSURFACE* backbuffer)
 	{
-		//if (surface == EqMainHooks->PrimarySurface) //just manually control our backbuffer
-		//{
-		//	*backbuffer = EqMainHooks->SecondarySurface;
-		//	return DD_OK;
-		//}
+		if (surface == EqMainHooks->PrimarySurface) 
+		{
+			*backbuffer = EqMainHooks->SecondarySurface;
+			return DD_OK;
+		}
 
 		HRESULT result =  EqMainHooks->hook_GetAttachedSurface.original(hGetAttachedSurface)(surface, caps, backbuffer);
 
@@ -113,25 +152,37 @@ namespace EqWindowed
 	/*
 	* This function I am just fixing up the surfacedesc to play nice with windowed mode
 	*/
-	HRESULT CreatePrimarySurface(IDirectDraw* lplpDD, LPDDSURFACEDESC lpDDSurfaceDesc, IUnknown FAR* pUnkOuter)
+	HRESULT CreatePrimarySurface(IDirectDraw* lplpDD)
 	{
-		lpDDSurfaceDesc->dwSize = sizeof(DDSURFACEDESC); 
-		lpDDSurfaceDesc->dwFlags = DDSD_CAPS;
-		lpDDSurfaceDesc->ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
-		HRESULT result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, lpDDSurfaceDesc, &EqMainHooks->PrimarySurface, pUnkOuter); //create the primary surface
+		DDSURFACEDESC surface_desc;
+		ZeroMemory(&surface_desc, sizeof(DDSURFACEDESC));
+		surface_desc.dwSize = sizeof(DDSURFACEDESC);
+		surface_desc.dwFlags = DDSD_CAPS;
+		surface_desc.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
+		HRESULT result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, &surface_desc, &EqMainHooks->PrimarySurface, NULL); //create the primary surface
+
 		if (!SUCCEEDED(result))
+		{
 			std::cout << "Primary Surface Creation Failed with HRESULT: " << std::hex << (DWORD)result << std::endl;
+			return result;
+		}
 		else
 			std::cout << "Primary Surface Creation Succeeded " << std::endl;
 
-		void** vtable = *(void***)(EqMainHooks->PrimarySurface);
-		EqMainHooks->hook_GetAttachedSurface = VTableHook(vtable, 12, hGetAttachedSurface, true);
-		EqMainHooks->hook_Flip = VTableHook(vtable, 11, hFlip, true);
+		if (EqMainHooks->PrimarySurface)
+		{
+			void** vtable = *(void***)(EqMainHooks->PrimarySurface);
+			EqMainHooks->hook_GetAttachedSurface = VTableHook(vtable, 12, hGetAttachedSurface, true);
+			EqMainHooks->hook_Flip = VTableHook(vtable, 11, hFlip, true);
 
-		LPDIRECTDRAWCLIPPER lpClipper;
-		lplpDD->CreateClipper(0, &lpClipper, NULL);
-		RECT clipRect = { 0, 0, 1024, 768 }; // x, y, width, height
-		EqMainHooks->PrimarySurface->SetClipper(lpClipper);
+			LPDIRECTDRAWCLIPPER lpClipper;
+			lplpDD->CreateClipper(0, &lpClipper, NULL);
+			lpClipper->SetHWnd(0, EqWindowed::Wnd->Handle);
+			RECT clipRect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // x, y, width, height
+			EqMainHooks->PrimarySurface->SetClipper(lpClipper);
+			lplpDD->Release();
+		}
+
 		return result;
 	}
 
@@ -139,26 +190,27 @@ namespace EqWindowed
 	/*
 	* Attempting to create a backbuffer so getattachedsurface doesn't fail, eqmain.dll expects this function to work to get the backbuffer
 	*/
-	HRESULT CreateSecondarySurface(IDirectDraw* lplpDD, LPDDSURFACEDESC lpDDSurfaceDesc, IUnknown FAR* pUnkOuter)
+	HRESULT CreateSecondarySurface(IDirectDraw* lplpDD)
 	{
-		ZeroMemory(lpDDSurfaceDesc, sizeof(DDSURFACEDESC));
-		lpDDSurfaceDesc->dwSize = sizeof(DDSURFACEDESC);
-		lpDDSurfaceDesc->ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_SYSTEMMEMORY; 
-		lpDDSurfaceDesc->dwFlags = DDSD_CAPS | DDSD_PIXELFORMAT | DDSD_WIDTH | DDSD_HEIGHT;
-		lpDDSurfaceDesc->dwWidth = 1024;
-		lpDDSurfaceDesc->dwHeight = 768;
-		// Set a default pixel format (use DDPF_RGB for example)
-		lpDDSurfaceDesc->ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
-		lpDDSurfaceDesc->ddpfPixelFormat.dwFlags = DDPF_RGB;
-		lpDDSurfaceDesc->ddpfPixelFormat.dwRGBBitCount = 32; 
-		lpDDSurfaceDesc->ddpfPixelFormat.dwRBitMask = 0x00FF0000;
-		lpDDSurfaceDesc->ddpfPixelFormat.dwGBitMask = 0x0000FF00;
-		lpDDSurfaceDesc->ddpfPixelFormat.dwBBitMask = 0x000000FF;
-		HRESULT result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, lpDDSurfaceDesc, &EqMainHooks->SecondarySurface, pUnkOuter);
+		DDSURFACEDESC surface_desc;
+		ZeroMemory(&surface_desc, sizeof(DDSURFACEDESC));
+		surface_desc.dwSize = sizeof(DDSURFACEDESC);
+		surface_desc.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT;
+		surface_desc.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_VIDEOMEMORY;
+		surface_desc.dwWidth = EqMainHooks->res.width;  // Match the primary surface resolution
+		surface_desc.dwHeight = EqMainHooks->res.height; // Match the primary surface resolution
+		surface_desc.ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+		surface_desc.ddpfPixelFormat.dwFlags = DDPF_RGB;
+		surface_desc.ddpfPixelFormat.dwRGBBitCount = 16; // Match primary surface bit depth
+		surface_desc.ddpfPixelFormat.dwRBitMask = 0xF800;  // 5 bits for Red (RGB 5-6-5)
+		surface_desc.ddpfPixelFormat.dwGBitMask = 0x07E0;  // 6 bits for Green (RGB 5-6-5)
+		surface_desc.ddpfPixelFormat.dwBBitMask = 0x001F;  // 5 bits for Blue (RGB 5-6-5)
+		HRESULT result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, &surface_desc, &EqMainHooks->SecondarySurface, NULL);
 		if (!SUCCEEDED(result))
 			std::cout << "Secondary Surface Creation Failed with HRESULT: " << std::hex << (DWORD)result << std::endl;
 		else
 			std::cout << "Secondary Surface Creation Succeeded " << std::endl;
+
 		return result;
 	}
 
@@ -168,20 +220,23 @@ namespace EqWindowed
 		std::cout << "Create Surface" << std::endl;
 		if (lpDDSurfaceDesc == nullptr || lplpDDSurface == nullptr)
 			return E_POINTER;
+
 		HRESULT result = E_FAIL;
-		if ((lpDDSurfaceDesc->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE) && (lpDDSurfaceDesc->ddsCaps.dwCaps & DDSCAPS_FLIP) && (lpDDSurfaceDesc->dwFlags & DDSD_CAPS))
+		if ((lpDDSurfaceDesc->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE) && (lpDDSurfaceDesc->ddsCaps.dwCaps & DDSCAPS_FLIP) && (lpDDSurfaceDesc->dwFlags & DDSD_CAPS) && lpDDSurfaceDesc->dwBackBufferCount==1)
 		{
 			
-			if (SUCCEEDED(CreatePrimarySurface(lplpDD, lpDDSurfaceDesc, pUnkOuter)) && SUCCEEDED(CreateSecondarySurface(lplpDD, lpDDSurfaceDesc, pUnkOuter)))
+			
+			if (SUCCEEDED(CreatePrimarySurface(lplpDD)) && SUCCEEDED(CreateSecondarySurface(lplpDD)))
 			{
-				result = DD_OK;
-			//	HRESULT hr = EqMainHooks->PrimarySurface->AddAttachedSurface(EqMainHooks->SecondarySurface);
+			//	result = DD_OK;
+				//HRESULT hr = EqMainHooks->PrimarySurface->AddAttachedSurface(EqMainHooks->SecondarySurface);
 			//	if (hr != DD_OK)
 			//		std::cout << "Failed to attach back buffer to primary surface " << std::hex << hr << std::endl;
 				*lplpDDSurface = EqMainHooks->PrimarySurface;
 			}
 			return result;
 		}
+
 		result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, lpDDSurfaceDesc, lplpDDSurface, pUnkOuter);
 
 
@@ -198,9 +253,9 @@ namespace EqWindowed
 		hook_SetCooperativeLevel = VTableHook(vtable, 20, hSetCooperativeLevel);
 		hook_SetDisplayMode= VTableHook(vtable, 21, hSetDisplayMode);
 		hook_CreateSurface = VTableHook(vtable, 6, hCreateSurface);
-		/*
-			Can do custom ddraw initializing here if needed
-		*/
+		DDSURFACEDESC surface_desc;
+		surface_desc.dwSize = 0x6c;
+		DDraw->GetDisplayMode(&surface_desc);
 	}
 
     EqMain::EqMain(HMODULE handle)
@@ -208,6 +263,10 @@ namespace EqWindowed
 		Console::CreateConsole();
         hook_CreateDirectDraw = IATHook(handle, "ddraw.dll", "DirectDrawCreate", hDirectDrawCreate);
 		hook_CreateWindow = IATHook(handle, "user32.dll", "CreateWindowExA", hCreateWindowEx);
+		hook_SetWindowPos = IATHook(handle, "user32.dll", "SetWindowPos", hSetWindowPos);
+		hook_SetCapture = IATHook(handle, "user32.dll", "SetCapture", hSetCapture);
+		hook_SetWindowLongA = IATHook(handle, "user32.dll", "SetWindowLongA", hSetWindowLongA);
+		hook_DestroyWindow = IATHook(handle, "user32.dll", "DestroyWindow", hDestroyWindow);
     }
    
 }
