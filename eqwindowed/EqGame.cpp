@@ -25,7 +25,7 @@ namespace EqWindowed
     HWND WINAPI hSetCapture(HWND hWnd)
     {
         std::cout << "SetCapture" << std::endl;
-        return 0;
+        return SetCapture(hWnd);
     }
     HRESULT WINAPI hSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags)
     {

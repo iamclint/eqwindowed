@@ -1,10 +1,12 @@
 #include "pch.h"
 #include "EqWindow.h"
+#include "EqWindowed.h"
 #include <iostream>
 #include "Console.h"
 namespace EqWindowed
 {
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+		Console::CreateConsole();
 		std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
 		switch (msg) {
 		case WM_CLOSE:
@@ -25,20 +27,11 @@ namespace EqWindowed
 	}
 	void EqWindow::MessageLoop()
 	{
-		MSG msg;
-		while (GetMessageA(&msg, NULL, 0, 0) > 0) {
-			TranslateMessage(&msg);
-			DispatchMessageA(&msg);
-		}
-	}
-	EqWindow::EqWindow()
-	{
-		Console::CreateConsole();
 		WNDCLASSA wc = {};
-		wc.lpfnWndProc = DefWindowProcA;  // Set your window procedure here
+		wc.lpfnWndProc = WndProc;  // Set your window procedure here
 		wc.hInstance = GetModuleHandleA(NULL);
 		wc.lpszClassName = "EqWindowed";
-
+		wc.style = CS_HREDRAW | CS_VREDRAW;
 		if (RegisterClassA(&wc) == 0) {
 			// Handle registration failure
 			MessageBoxA(NULL, "Window class registration failed!", "Error", MB_OK | MB_ICONERROR);
@@ -48,6 +41,16 @@ namespace EqWindowed
 		Handle = CreateWindowExA(0, "EqWindowed", "EqWindowed", dwStyle, 0, 0, 1024, 768, NULL, NULL, NULL, NULL);
 		ShowWindow(Handle, SW_SHOW);
 		UpdateWindow(Handle);  // This forces the window to be updated and painted
+		MSG msg;
+		while (GetMessageA(&msg, NULL, 0, 0) > 0) {
+			TranslateMessage(&msg);
+			DispatchMessageA(&msg);
+		}
+	}
+	EqWindow::EqWindow()
+	{
+		Console::CreateConsole();
+		
 		message_thd = std::thread(&EqWindow::MessageLoop, this);
 		message_thd.detach();
 	}

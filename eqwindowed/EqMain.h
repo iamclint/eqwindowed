@@ -52,6 +52,7 @@ namespace EqWindowed
     class EqMain
     {
     public:
+        IDirectDraw* dd=nullptr;
         Resolution res = { 1024, 768 };
         IDirectDraw* originalDirectDraw;
         IDirectDrawSurface* PrimarySurface = nullptr;
@@ -65,8 +66,10 @@ namespace EqWindowed
         VTableHook hook_SetCooperativeLevel;
         VTableHook hook_SetDisplayMode;
         VTableHook hook_CreateSurface;
+        VTableHook hook_GetDisplayMode;
         VTableHook hook_Flip;
         VTableHook hook_GetAttachedSurface;
+        VTableHook hook_QueryInterface;
         EqMain(HMODULE handle);
         void InitDDraw(IDirectDraw* lplpDD);
     private:
