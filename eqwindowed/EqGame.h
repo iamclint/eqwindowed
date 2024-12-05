@@ -14,6 +14,7 @@ namespace EqWindowed
         IATHook hook_SetWindowLongA;
         IATHook hook_ShowWindow;
         IATHook hook_DestroyWindow;
+        IATHook hook_RegisterClass;
         EqGame(HMODULE handle);
     };
 }

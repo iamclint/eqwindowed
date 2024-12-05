@@ -1,8 +1,10 @@
 #pragma once
+#define DIRECTINPUT_VERSION 0x0800
 #include "EqWindow.h"
 #include "IATHook.h"
 #include "VTableHook.h"
 #include <ddraw.h>
+#include <dinput.h>
 #include <vector>
 #include <unordered_map>
 namespace EqWindowed
@@ -53,16 +55,20 @@ namespace EqWindowed
     {
     public:
         IDirectDraw* dd=nullptr;
-        Resolution res = { 1024, 768 };
+        static constexpr Resolution res = { 640, 480 };
         IDirectDraw* originalDirectDraw;
         IDirectDrawSurface* PrimarySurface = nullptr;
         IDirectDrawSurface* SecondarySurface = nullptr;
+        IDirectDrawSurface* ThirdSurface = nullptr;
         IATHook hook_CreateDirectDraw;
         IATHook hook_CreateWindow;
         IATHook hook_SetWindowPos;
         IATHook hook_SetCapture;
         IATHook hook_SetWindowLongA;
         IATHook hook_DestroyWindow;
+        IATHook hook_DirectInput;
+        IATHook hook_GetCursorPos;
+        IATHook hook_ClientToScreen;
         VTableHook hook_SetCooperativeLevel;
         VTableHook hook_SetDisplayMode;
         VTableHook hook_CreateSurface;

@@ -3,14 +3,27 @@
 #include "Console.h"
 namespace EqWindowed
 {
+	std::unordered_map<void*, void*> original_map;
 	VTableHook::VTableHook(void** objVTable, size_t index, LPVOID newFunction, bool debug)
 	{
-		if (debug)
+		if (objVTable[index] != newFunction)
 		{
-			Console::CreateConsole();
-			std::cout << "Create vatble hook on: 0x" << std::hex << objVTable << " index: " << index << " -> 0x" << objVTable[index] << " to new function 0x" << newFunction << std::endl;
+			if (debug)
+			{
+				Console::CreateConsole();
+				std::cout << "Create vtable hook on: 0x" << std::hex << objVTable << " index: " << index << " -> 0x" << objVTable[index] << " to new function 0x" << newFunction << std::endl;
+			}
+			original_map[newFunction] = objVTable[index];
+			orig_function = ReplaceVTableFunction(objVTable, index, newFunction);
 		}
-		orig_function = ReplaceVTableFunction(objVTable, index, newFunction);
+		else
+		{
+			if (debug)
+				std::cout << "Vtable already pointing at your function!" << std::endl;
+			Console::CreateConsole();
+			if (original_map.count(newFunction))
+				orig_function = original_map[newFunction];
+		}
 	}
 	void* VTableHook::ReplaceVTableFunction(void** objectVTable, size_t index, LPVOID newFunction) {
 		if (!objectVTable) return nullptr;
