@@ -7,8 +7,7 @@ namespace EqWindowed
 {
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		Console::CreateConsole();
-		if (Wnd->eqMainWndProc)
-			LRESULT eqm=reinterpret_cast<LRESULT(CALLBACK*)(HWND, UINT, WPARAM, LPARAM)>(Wnd->eqMainWndProc)(hwnd, msg, wParam, lParam);
+
 //		std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
 		static bool isCursorHidden = false;
 		switch (msg) {
@@ -31,37 +30,33 @@ namespace EqWindowed
 			}
 		}
 		case WM_ACTIVATE:
-		{
-			if (wParam == WA_ACTIVE || wParam == WA_CLICKACTIVE)
+			if (EqMainHooks && EqMainHooks->keyboard)
 			{
-				std::cout << "Focus" << std::endl;
-				//ShowCursor(false);
-				Wnd->isFocused = true;
-			}
-			else
-			{
-				std::cout << "unFocus" << std::endl;
-				Wnd->isFocused = false;
-				//ShowCursor(true);
-			}
-			break;
-		}
-		case WM_SETFOCUS:
-		{
-			std::cout << "Focus" << std::endl;
-			//ShowCursor(false);
-			break;
-		}
-		case WM_KILLFOCUS:
-		{
-			std::cout << "unFocus" << std::endl;
-			//ShowCursor(true);
-			break;
-		}
+				if (GetForegroundWindow() == Wnd->Handle)
+				{
+					EqMainHooks->need_keystate_reset = true;
+					EqMainHooks->key_release_index = 0;
+					Wnd->isFocused = true;
+					std::cout << "Activate" << std::endl;
+					HRESULT hr = EqMainHooks->keyboard->Acquire();
+					if (FAILED(hr))
+					{
+						std::cout << "Keyboard Acquire failed " << std::hex << hr << std::endl;
+					}
+				}
+				else
+				{
 
+					Wnd->isFocused = false;
+					std::cout << "Deactivate" << std::endl;
+					EqMainHooks->keyboard->Unacquire();
+				}
+			}
+			break;
 		case WM_CLOSE:
 		case WM_DESTROY:
 			PostQuitMessage(0);
+			CloseWindow(Wnd->Handle);
 			break;
 		case WM_PAINT:
 		{
@@ -76,7 +71,25 @@ namespace EqWindowed
 			Wnd->UpdateClientSize(hwnd);
 			break;
 		}
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_LBUTTONDBLCLK:
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP:
+		case WM_RBUTTONDBLCLK:
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP:
+		case WM_MBUTTONDBLCLK:
+		case WM_SETFOCUS:
+			if (Wnd->eqMainWndProc)
+			{
+				if (EqMainHooks && EqMainHooks->keyboard)
+					EqMainHooks->keyboard->Acquire();
+				LRESULT eqm = reinterpret_cast<LRESULT(CALLBACK*)(HWND, UINT, WPARAM, LPARAM)>(Wnd->eqMainWndProc)(hwnd, msg, wParam, lParam);
+				break;
+			}
 		default:
+			
 			return DefWindowProcA(hwnd, msg, wParam, lParam);
 		}
 		return 0;

@@ -219,6 +219,7 @@ namespace EqWindowed
 		SetPixelFormat(lpDDSurfaceDesc->ddpfPixelFormat);
 		return result;
 	}
+
 	void EqMain::InitDDraw(IDirectDraw* DDraw)
 	{
 		void** vtable = *(void***)DDraw;
@@ -228,17 +229,79 @@ namespace EqWindowed
 		hook_GetDisplayMode = VTableHook(vtable, 12, hGetDisplayMode);
 	}
 
+	HRESULT WINAPI hKeyboardSetCooperativeLevel(LPDIRECTINPUTDEVICE8W* device, HWND wnd, DWORD flags)
+	{
+		std::cout << "Keyboard set cooperative level " << device << " " << wnd << " " << flags << std::endl;
+		//flags = DISCL_FOREGROUND;
+		HRESULT result = EqMainHooks->hook_KeyboardSetCooperativeLevel.original(hKeyboardSetCooperativeLevel)(device, wnd, flags);
+		return result;
+	}
+
+	HRESULT WINAPI hKeyboardGetDeviceData(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
+	{
+		HRESULT result = EqMainHooks->hook_KeyboardGetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size,data, event_count_max,unk);
+		//if (SUCCEEDED(result))
+		//{
+		//	for (DWORD i = 0; i < *event_count_max; ++i)
+		//	{
+		//		// Process each event
+		//		if (data[i].dwData & 0x80)
+		//		{
+		//			// Key was pressed
+		//			printf("Key pressed: %d\n", data[i].dwOfs);
+		//		}
+		//		else
+		//		{
+		//			// Key was released
+		//			printf("Key released: %d\n", data[i].dwOfs);
+		//		}
+		//	}
+		//}
+
+		if (EqMainHooks->need_keystate_reset)
+		{
+			*event_count_max = 1;
+			data[0].dwData = 0;
+			data[0].dwOfs = EqMainHooks->key_releases.at(EqMainHooks->key_release_index);
+			std::cout << "Release key: " << data[0].dwOfs << std::endl;
+			result = S_OK;
+			EqMainHooks->key_release_index++;
+			if (EqMainHooks->key_release_index >= EqMainHooks->key_releases.size())
+				EqMainHooks->need_keystate_reset = false;
+		}
+
+
+		return result;
+	}
+
+	HRESULT WINAPI hCreateDevice(LPDIRECTINPUT8* ppvOut, GUID& guid, LPDIRECTINPUTDEVICE8W* device, LPUNKNOWN unk)
+	{
+
+		HRESULT result = EqMainHooks->hook_CreateDevice.original(hCreateDevice)(ppvOut,guid, device, unk);
+		if (guid == GUID_SysKeyboard)
+		{
+
+			EqMainHooks->keyboard = *device;
+			void** vtable = *(void***)(*device);
+			EqMainHooks->hook_KeyboardSetCooperativeLevel = VTableHook(vtable, 13, hKeyboardSetCooperativeLevel); 
+			EqMainHooks->hook_KeyboardGetDeviceData = VTableHook(vtable, 10, hKeyboardGetDeviceData);
+
+				
+		}
+
+		return result;
+	
+	}
+
 	HRESULT WINAPI hDirectInputCreate(HINSTANCE hinst,DWORD dwVersion,REFIID riidltf, LPDIRECTINPUT8* ppvOut,LPDIRECTINPUT8 punkOuter)
 	{
 		std::cout << "Direct Input Hook -- Version: " << dwVersion << std::endl;
-		LPDIRECTINPUT8 local_dInput = nullptr;
 		HRESULT res = EqMainHooks->hook_DirectInput.original(hDirectInputCreate)(hinst, dwVersion, riidltf, ppvOut, punkOuter);
-		//if (res == S_OK)
-		//{
-		//	*ppvOut = local_dInput;
-		//	void** vtable = *(void***)(*ppvOut);
-		//	EqMainHooks->hook_QueryInterface = VTableHook(vtable, 0, hQueryInterface); //never seems to be called
-		//}
+		if (res == S_OK)
+		{
+			void** vtable = *(void***)(*ppvOut);
+			EqMainHooks->hook_CreateDevice = VTableHook(vtable, 3, hCreateDevice); 
+		}
 
 		return res;
 
@@ -276,7 +339,7 @@ namespace EqWindowed
 		hook_SetCapture = IATHook(handle, "user32.dll", "SetCapture", hSetCapture);
 	    hook_SetWindowLongA = IATHook(handle, "user32.dll", "SetWindowLongA", hSetWindowLongA);
 		hook_DestroyWindow = IATHook(handle, "user32.dll", "DestroyWindow", hDestroyWindow);
-		//hook_DirectInput = IATHook(handle, "dinput8.dll", "DirectInput8Create", hDirectInputCreate);
+		hook_DirectInput = IATHook(handle, "dinput8.dll", "DirectInput8Create", hDirectInputCreate);
 		hook_GetCursorPos = IATHook(handle, "user32.dll", "GetCursorPos", hGetCursorPos);
 		hook_ClientToScreen = IATHook(handle, "user32.dll", "ClientToScreen", hClientToScreen);
     }
