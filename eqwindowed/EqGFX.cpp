@@ -11,8 +11,14 @@ namespace EqWindowed
 {
 	HRESULT WINAPI hCreateDevice(IDirect3D8* pD3D, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters, IDirect3DDevice8** ppReturnedDeviceInterface)
 	{
+		D3DPRESENT_PARAMETERS LP = *pPresentationParameters;
+		LP.Windowed = true;
+		LP.hDeviceWindow = Wnd->Handle;
 		std::cout << "Create device hook" << std::endl;
-		return EqGFXHooks->hook_CreateDevice.original(hCreateDevice)(pD3D, Adapter, DeviceType, hFocusWindow, BehaviorFlags, pPresentationParameters, ppReturnedDeviceInterface);
+		HRESULT result = EqGFXHooks->hook_CreateDevice.original(hCreateDevice)(pD3D, Adapter, DeviceType, Wnd->Handle, BehaviorFlags, &LP, ppReturnedDeviceInterface);
+		if (SUCCEEDED(result))
+			Wnd->AdjustClientSize(LP.BackBufferWidth, LP.BackBufferHeight);
+		return result;
 
 	}
 	IDirect3D8* WINAPI hDirect3DCreate8(UINT SDK)
@@ -26,13 +32,20 @@ namespace EqWindowed
 		
 	}
 
-
+	HCURSOR WINAPI hSetCursor(HCURSOR h)
+	{
+		std::cout << "Set cursor " << h << std::endl;
+		return h;
+	}
 
 	EqGFX::EqGFX(HMODULE handle)
 	{
 		Console::CreateConsole();
 		std::cout << "Init d3dx " << std::endl;
 		hook_Direct3DCreate8 = IATHook(handle, "d3d8.dll", "Direct3DCreate8", hDirect3DCreate8);
-		hook_SetWindowPos = IATHook(handle, "user32.dll", "SetWindowPos", hSetWindowPos);
+		IATHook h1 = IATHook(handle, "user32.dll", "SetWindowPos", hSetWindowPos);
+		IATHook h2 = IATHook(handle, "user32.dll", "SetWindowLongA", hSetWindowLongA);
+		IATHook h3 = IATHook(handle, "user32.dll", "SetCapture", hSetCapture);
+		IATHook h5 = IATHook(handle, "user32.dll", "SetCursor", hSetCursor);
 	}
 }

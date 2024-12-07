@@ -26,7 +26,15 @@ namespace EqWindowed
     HWND WINAPI hSetCapture(HWND hWnd)
     {
         std::cout << "SetCapture" << std::endl;
-        return EqGameHooks->hook_SetCapture.original(hSetCapture)(hWnd);
+        ReleaseCapture();
+        return 0;
+        //return EqGameHooks->hook_SetCapture.original(hSetCapture)(hWnd);
+    }
+    HWND WINAPI hSetFocus(HWND hWnd)
+    {
+        std::cout << "SetFocus" << std::endl;
+        return hWnd;
+        //return EqGameHooks->hook_SetCapture.original(hSetCapture)(hWnd);
     }
     HRESULT WINAPI hSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags)
     {
@@ -60,6 +68,7 @@ namespace EqWindowed
             cls_data->hCursor = LoadCursorA(0, (LPCSTR)0x7F00);
         return EqGameHooks->hook_RegisterClass.original(hRegisterClass)(cls_data);
     }
+
     EqGame::EqGame(HMODULE handle)
     {
         Console::CreateConsole();
@@ -70,5 +79,6 @@ namespace EqWindowed
         hook_ShowWindow = IATHook(handle, "user32.dll", "ShowWindow", hShowWindow);
         hook_DestroyWindow = IATHook(handle, "user32.dll", "DestroyWindow", hDestroyWindow);
         hook_RegisterClass = IATHook(handle, "user32.dll", "RegisterClassA", hRegisterClass);
+        DInput->init(handle);
     }
 }

@@ -54,6 +54,9 @@
     <ClInclude Include="IATHook.h">
       <Filter>Header Files\Memory</Filter>
     </ClInclude>
+    <ClInclude Include="EqDInput.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -82,6 +85,9 @@
     </ClCompile>
     <ClCompile Include="VTableHook.cpp">
       <Filter>Source Files\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="EqDInput.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

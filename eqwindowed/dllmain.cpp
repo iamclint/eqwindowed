@@ -9,12 +9,14 @@ namespace EqWindowed
     EqMain* EqMainHooks = nullptr;
     EqGFX* EqGFXHooks = nullptr;
     EqWindow* Wnd = nullptr;
+    EqDInput* DInput = nullptr;
 }
 
 
 
 extern "C" __declspec(dllexport) void __stdcall InitFromEqClient() //this is set to ordinal 1 in the eqwindoweddef
 {
+    EqWindowed::DInput = new EqWindowed::EqDInput();
     EqWindowed::Wnd = new EqWindowed::EqWindow();
     EqWindowed::EqGameHooks = new EqWindowed::EqGame(GetModuleHandleA(NULL));
 }

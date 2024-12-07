@@ -148,6 +148,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Console.h" />
+    <ClInclude Include="EqDInput.h" />
     <ClInclude Include="EqGame.h" />
     <ClInclude Include="EqGFX.h" />
     <ClInclude Include="EqMain.h" />
@@ -161,6 +162,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="EqDInput.cpp" />
     <ClCompile Include="EqGame.cpp" />
     <ClCompile Include="EqGFX.cpp" />
     <ClCompile Include="EqMain.cpp" />

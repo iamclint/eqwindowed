@@ -6,6 +6,8 @@ namespace EqWindowed
 	class EqWindow
 	{
 	public:
+		static constexpr DWORD dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
 		EqWindow();
 		HWND Handle;
 		LPDIRECTDRAWSURFACE Surface = nullptr;
@@ -13,7 +15,7 @@ namespace EqWindowed
 		int X, Y = 0;
 		int Width, Height = 0;
 		void AdjustClientSize(int clientWidth, int clientHeight);
-		void UpdateClientSize(HWND hwnd);
+		void UpdateClientRegionPosition(HWND hwnd);
 		void MaintainAspectRatio();
 		bool isFocused = false;
 		void* eqMainWndProc = nullptr;

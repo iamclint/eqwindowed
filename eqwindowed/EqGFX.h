@@ -7,8 +7,8 @@ namespace EqWindowed
 	class EqGFX
 	{
 	public:
+		DWORD gammaRamp;
 		IATHook hook_Direct3DCreate8;
-		IATHook hook_SetWindowPos;
 		VTableHook hook_CreateDevice;
 		EqGFX(HMODULE handle);
 	};

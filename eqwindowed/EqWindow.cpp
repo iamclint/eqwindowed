@@ -5,9 +5,19 @@
 #include "Console.h"
 namespace EqWindowed
 {
+	void EqWindow::AdjustClientSize(int clientWidth, int clientHeight)
+	{
+		RECT rect = { 0, 0, clientWidth, clientHeight }; // Client area size
+		AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
+		EqMainHooks->res.width = clientWidth;
+		EqMainHooks->res.height = clientHeight;
+		std::cout << "AdjustSize " << rect.right - rect.left << " x " << rect.bottom - rect.top << std::endl;
+		SetWindowPos(Handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+
+	}
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		Console::CreateConsole();
-
+		static bool mouse_was_exited = false;
 //		std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
 		static bool isCursorHidden = false;
 		switch (msg) {
@@ -30,15 +40,15 @@ namespace EqWindowed
 			}
 		}
 		case WM_ACTIVATE:
-			if (EqMainHooks && EqMainHooks->keyboard)
+			if (DInput && DInput->keyboard)
 			{
 				if (GetForegroundWindow() == Wnd->Handle)
 				{
-					EqMainHooks->need_keystate_reset = true;
-					EqMainHooks->key_release_index = 0;
+					DInput->need_keystate_reset = true;
+					DInput->key_release_index = 0;
 					Wnd->isFocused = true;
 					std::cout << "Activate" << std::endl;
-					HRESULT hr = EqMainHooks->keyboard->Acquire();
+					HRESULT hr = DInput->keyboard->Acquire();
 					if (FAILED(hr))
 					{
 						std::cout << "Keyboard Acquire failed " << std::hex << hr << std::endl;
@@ -49,7 +59,7 @@ namespace EqWindowed
 
 					Wnd->isFocused = false;
 					std::cout << "Deactivate" << std::endl;
-					EqMainHooks->keyboard->Unacquire();
+					DInput->keyboard->Unacquire();
 				}
 			}
 			break;
@@ -68,7 +78,35 @@ namespace EqWindowed
 		case WM_SIZE:
 		case WM_MOVE:
 		{
-			Wnd->UpdateClientSize(hwnd);
+			Wnd->UpdateClientRegionPosition(hwnd);
+			break;
+		}
+		case WM_MOUSEMOVE:
+		{
+			if (mouse_was_exited)
+			{
+				mouse_was_exited = false;
+				GetCursorPos(&DInput->exit_cursor_pos);
+				std::cout << "Cursor Enter pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
+			}
+			// Register for mouse leave events
+			TRACKMOUSEEVENT tme;
+			tme.cbSize = sizeof(TRACKMOUSEEVENT);
+			tme.dwFlags = TME_LEAVE;
+			tme.hwndTrack = Wnd->Handle;  // The window to track
+			TrackMouseEvent(&tme);
+
+			if (DInput->mouse)
+				DInput->mouse->Acquire();
+			break;
+		}
+		case WM_MOUSELEAVE:
+		{
+			mouse_was_exited = true;
+			GetCursorPos(&DInput->exit_cursor_pos);
+			std::cout << "Cursor exit pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
+			if (DInput->mouse)
+				DInput->mouse->Unacquire();
 			break;
 		}
 		case WM_LBUTTONDOWN:
@@ -83,8 +121,8 @@ namespace EqWindowed
 		case WM_SETFOCUS:
 			if (Wnd->eqMainWndProc)
 			{
-				if (EqMainHooks && EqMainHooks->keyboard)
-					EqMainHooks->keyboard->Acquire();
+				if (DInput && DInput->keyboard)
+					DInput->keyboard->Acquire();
 				LRESULT eqm = reinterpret_cast<LRESULT(CALLBACK*)(HWND, UINT, WPARAM, LPARAM)>(Wnd->eqMainWndProc)(hwnd, msg, wParam, lParam);
 				break;
 			}
@@ -94,14 +132,19 @@ namespace EqWindowed
 		}
 		return 0;
 	}
-	void EqWindow::UpdateClientSize(HWND hwnd) 
+	void EqWindow::UpdateClientRegionPosition(HWND hwnd) 
 	{
 		RECT windowRect, clientRect;
 
 		if (GetWindowRect(hwnd, &windowRect) && GetClientRect(hwnd, &clientRect)) 
 		{
-			DWORD dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-			RECT rect = { 0, 0, EqMain::res.width, EqMain::res.height }; // Client area size
+			
+			RECT rect;
+			if (EqMainHooks)
+				rect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // Client area size
+			else
+				rect = { 0, 0, 640, 480 }; // Client area size
+			std::cout << "UpdateClientRegionPosition" << rect.bottom << "x" << rect.right << std::endl;
 			AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
 
 			int borderWidth = (windowRect.right - windowRect.left - clientRect.right) / 2;
@@ -109,14 +152,8 @@ namespace EqWindowed
 			UINT dpi = GetDpiForWindow(hwnd);  // Available on Windows 10+
 			borderWidth = MulDiv(borderWidth, dpi, 96);
 			titleBarHeight = MulDiv(titleBarHeight, dpi, 96);
-			std::cout << "Border Width: " << std::dec << borderWidth << std::endl;
-			std::cout << "Title Bar Height: " << titleBarHeight << std::endl;
-			// Client position relative to the window
 			X = windowRect.left+ rect.left+(borderWidth*2);
 			Y = windowRect.top + titleBarHeight;
-			//Width = windowRect.right - windowRect.left;
-			//Height = windowRect.bottom - windowRect.top - titleBarHeight;
-			std::cout << "X: " << X << " Y: " << Y << " Width: " << Width << " Height: " << Height << std::endl;
 		}
 	}
 	void EqWindow::MessageLoop()
@@ -131,13 +168,12 @@ namespace EqWindowed
 			MessageBoxA(NULL, "Window class registration failed!", "Error", MB_OK | MB_ICONERROR);
 			return;
 		}
-		DWORD dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-		RECT rect = { 0, 0, EqMain::res.width, EqMain::res.height }; // Client area size
+		RECT rect = { 0, 0, 640, 480 }; // Client area size
 		// Adjust the rect for the specified window style
 		AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
-		std::cout << "Width: " << rect.right - rect.left << " Height: " << rect.bottom - rect.top << std::endl;
-		Handle = CreateWindowExA(0, "EqWindowed", "EqWindowed", dwStyle, 10, 10, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, NULL, NULL);
-		UpdateClientSize(Handle);
+
+		Handle = CreateWindowExA(0, "EqWindowed", "EqWindowed", dwStyle, 0, 0, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, NULL, NULL);
+		UpdateClientRegionPosition(Handle);
 		ShowWindow(Handle, SW_SHOW);
 		UpdateWindow(Handle);  // This forces the window to be updated and painted
 		MSG msg;

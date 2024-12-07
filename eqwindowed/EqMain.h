@@ -56,8 +56,8 @@ namespace EqWindowed
     {
     public:
         IDirectDraw* dd=nullptr;
-        static constexpr Resolution res = { 640, 480 };
-        LPDIRECTINPUTDEVICE8W keyboard = nullptr;
+        Resolution res = { 640, 480 };
+        
         IDirectDraw* originalDirectDraw;
         IDirectDrawSurface* PrimarySurface = nullptr;
         IDirectDrawSurface* SecondarySurface = nullptr;
@@ -68,22 +68,20 @@ namespace EqWindowed
         IATHook hook_SetCapture;
         IATHook hook_SetWindowLongA;
         IATHook hook_DestroyWindow;
-        IATHook hook_DirectInput;
+        
         IATHook hook_GetCursorPos;
         IATHook hook_ClientToScreen;
         VTableHook hook_CreateDevice;
         VTableHook hook_SetCooperativeLevel;
-        VTableHook hook_KeyboardSetCooperativeLevel;
-        VTableHook hook_KeyboardGetDeviceData;
+
         VTableHook hook_SetDisplayMode;
         VTableHook hook_CreateSurface;
         VTableHook hook_GetDisplayMode;
         VTableHook hook_Flip;
         VTableHook hook_GetAttachedSurface;
         VTableHook hook_QueryInterface;
-        int key_release_index = 0;
-        bool need_keystate_reset = false;
-        std::vector<DWORD> key_releases = { 42, 54, 56, 184 };
+
+        
         EqMain(HMODULE handle);
         void InitDDraw(IDirectDraw* lplpDD);
     private:
