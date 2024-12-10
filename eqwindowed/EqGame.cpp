@@ -7,6 +7,7 @@ namespace EqWindowed
 {
     BOOL WINAPI hDestroyWindow(HWND wnd)
     {
+        std::cout << "Attempt to destroy our window" << std::endl;
         return true;
     }
     //eqgame.exe tries to maximize the window it creates we don't want that
@@ -19,7 +20,7 @@ namespace EqWindowed
         if (index == -0x4)
         {
             Wnd->eqMainWndProc = (void*)dwNewLong;
-            EqMainHooks->hook_SetWindowLongA.original(hSetWindowLongA)(wnd, -0x15, dwNewLong);
+         //   EqMainHooks->hook_SetWindowLongA.original(hSetWindowLongA)(wnd, -0x15, dwNewLong);
         }
         return GetWindowLongA(wnd, index);
     }
@@ -44,6 +45,11 @@ namespace EqWindowed
     HWND WINAPI hCreateWindowEx(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
     {
         std::cout << "Create Window " << X << " " << Y << " " << nWidth << " " << nHeight << std::endl;
+        if (EqWindowed::Wnd->Handle && EqMainHooks)
+        {
+            EqWindowed::Wnd->AdjustClientSize(nWidth, nHeight);
+        }
+
         return EqWindowed::Wnd->Handle;
     }
     HMODULE WINAPI hLoadLibraryA(LPCSTR lpLibFileName)
@@ -68,7 +74,6 @@ namespace EqWindowed
             cls_data->hCursor = LoadCursorA(0, (LPCSTR)0x7F00);
         return EqGameHooks->hook_RegisterClass.original(hRegisterClass)(cls_data);
     }
-
     EqGame::EqGame(HMODULE handle)
     {
         Console::CreateConsole();
@@ -79,6 +84,8 @@ namespace EqWindowed
         hook_ShowWindow = IATHook(handle, "user32.dll", "ShowWindow", hShowWindow);
         hook_DestroyWindow = IATHook(handle, "user32.dll", "DestroyWindow", hDestroyWindow);
         hook_RegisterClass = IATHook(handle, "user32.dll", "RegisterClassA", hRegisterClass);
+        IATHook(handle, "user32.dll", "SetWindowLongA", hSetWindowLongA);
+        
         DInput->init(handle);
     }
 }

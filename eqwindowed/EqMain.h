@@ -71,7 +71,7 @@ namespace EqWindowed
         
         IATHook hook_GetCursorPos;
         IATHook hook_ClientToScreen;
-        VTableHook hook_CreateDevice;
+        
         VTableHook hook_SetCooperativeLevel;
 
         VTableHook hook_SetDisplayMode;

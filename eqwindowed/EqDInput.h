@@ -18,11 +18,17 @@ namespace EqWindowed
 		bool need_keystate_reset = false;
 		LPDIRECTINPUTDEVICE8W keyboard = nullptr;
 		LPDIRECTINPUTDEVICE8W mouse = nullptr;
+		LPDIRECTINPUT8 dinput = nullptr;
 		IATHook hook_DirectInput;
 		VTableHook hook_KeyboardSetCooperativeLevel;
 		VTableHook hook_MouseSetCooperativeLevel;
 		VTableHook hook_KeyboardGetDeviceData;
+		VTableHook hook_KeyboardAcquire;
+		VTableHook hook_KeyboardRelease;
 		VTableHook hook_MouseGetDeviceData;
+		VTableHook hook_MouseRelease;
+		VTableHook hook_CreateDevice;
+		VTableHook hook_ReleaseDinput;
 		void init(HMODULE handle);
 		std::vector<DWORD> key_releases = { 42, 54, 56, 184 };
 		EqDInput();

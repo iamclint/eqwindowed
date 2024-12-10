@@ -7,12 +7,13 @@ namespace EqWindowed
 {
 	void EqWindow::AdjustClientSize(int clientWidth, int clientHeight)
 	{
+		SetWindowLong(Wnd->Handle, GWL_STYLE, dwStyle);
 		RECT rect = { 0, 0, clientWidth, clientHeight }; // Client area size
 		AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
 		EqMainHooks->res.width = clientWidth;
 		EqMainHooks->res.height = clientHeight;
 		std::cout << "AdjustSize " << rect.right - rect.left << " x " << rect.bottom - rect.top << std::endl;
-		SetWindowPos(Handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+		SetWindowPos(Handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
 	}
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -40,6 +41,7 @@ namespace EqWindowed
 			}
 		}
 		case WM_ACTIVATE:
+		{
 			if (DInput && DInput->keyboard)
 			{
 				if (GetForegroundWindow() == Wnd->Handle)
@@ -48,25 +50,28 @@ namespace EqWindowed
 					DInput->key_release_index = 0;
 					Wnd->isFocused = true;
 					std::cout << "Activate" << std::endl;
-					HRESULT hr = DInput->keyboard->Acquire();
-					if (FAILED(hr))
-					{
-						std::cout << "Keyboard Acquire failed " << std::hex << hr << std::endl;
-					}
+					if (DInput->mouse)
+						DInput->mouse->Acquire();
+					DInput->keyboard->Acquire();
 				}
 				else
 				{
 
 					Wnd->isFocused = false;
 					std::cout << "Deactivate" << std::endl;
+					if (DInput->mouse)
+						DInput->mouse->Unacquire();
 					DInput->keyboard->Unacquire();
 				}
 			}
 			break;
-		case WM_CLOSE:
+		}
+		case WM_QUIT:
 		case WM_DESTROY:
-			PostQuitMessage(0);
-			CloseWindow(Wnd->Handle);
+			std::cout << "Close window??" << std::endl;
+			//PostQuitMessage(0);
+			//CloseWindow(Wnd->Handle);
+			return 0;
 			break;
 		case WM_PAINT:
 		{
@@ -96,8 +101,7 @@ namespace EqWindowed
 			tme.hwndTrack = Wnd->Handle;  // The window to track
 			TrackMouseEvent(&tme);
 
-			if (DInput->mouse)
-				DInput->mouse->Acquire();
+
 			break;
 		}
 		case WM_MOUSELEAVE:
@@ -177,10 +181,26 @@ namespace EqWindowed
 		ShowWindow(Handle, SW_SHOW);
 		UpdateWindow(Handle);  // This forces the window to be updated and painted
 		MSG msg;
-		while (GetMessageA(&msg, NULL, 0, 0) > 0) {
-			TranslateMessage(&msg);
-			DispatchMessageA(&msg);
+		bool running = true;
+		while (running)
+		{
+			if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+				if (msg.message == WM_QUIT) {
+					std::cout << "WM_QUIT ignored!" << std::endl;
+					continue; // Ignore WM_QUIT
+				}
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
+		//while (GetMessageA(&msg, NULL, 0, 0)) {
+		//	if (msg.message == WM_QUIT) {
+		//		std::cout << "Ignoring WM_QUIT" << std::endl;
+		//		continue;
+		//	}
+		//	TranslateMessage(&msg);
+		//	DispatchMessageA(&msg);
+		//}
 	}
 	EqWindow::EqWindow()
 	{

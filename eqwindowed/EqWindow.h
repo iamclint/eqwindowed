@@ -17,7 +17,7 @@ namespace EqWindowed
 		void AdjustClientSize(int clientWidth, int clientHeight);
 		void UpdateClientRegionPosition(HWND hwnd);
 		void MaintainAspectRatio();
-		bool isFocused = false;
+		bool isFocused = true;
 		void* eqMainWndProc = nullptr;
 	private:
 		std::thread message_thd;

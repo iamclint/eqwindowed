@@ -10,6 +10,7 @@ namespace EqWindowed
     EqGFX* EqGFXHooks = nullptr;
     EqWindow* Wnd = nullptr;
     EqDInput* DInput = nullptr;
+    HMODULE thisMod = nullptr;
 }
 
 
@@ -36,6 +37,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     case DLL_PROCESS_ATTACH:
     {
         Console::CreateConsole("EqWindowed");
+        EqWindowed::thisMod = hModule;
         break;
     }
     case DLL_THREAD_ATTACH:

@@ -14,6 +14,7 @@ namespace EqWindowed
     extern EqGFX* EqGFXHooks;
     extern EqWindow* Wnd;
     extern EqDInput* DInput;
+    extern HMODULE thisMod;
     HWND WINAPI hCreateWindowEx(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam);
     HRESULT WINAPI hSetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags);
     HWND WINAPI hSetCapture(HWND hWnd);
