@@ -5,17 +5,25 @@
 #include "Console.h"
 namespace EqWindowed
 {
-	void EqWindow::AdjustClientSize(int clientWidth, int clientHeight)
-	{
-		SetWindowLong(Wnd->Handle, GWL_STYLE, dwStyle);
-		RECT rect = { 0, 0, clientWidth, clientHeight }; // Client area size
-		AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
-		EqMainHooks->res.width = clientWidth;
-		EqMainHooks->res.height = clientHeight;
-		std::cout << "AdjustSize " << rect.right - rect.left << " x " << rect.bottom - rect.top << std::endl;
-		SetWindowPos(Handle, NULL, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	std::unordered_map<WindowStyle, DWORD> WindowStyles = {
+		{ Windowed,  WS_OVERLAPPEDWINDOW | WS_VISIBLE },
+		{ Maximized, WS_OVERLAPPEDWINDOW | WS_VISIBLE },
+		{ MaximizedBorderless, WS_POPUPWINDOW | WS_VISIBLE }
+	};
 
+	void printWindowStyle(WindowStyle style) {
+		switch (style) {
+		case WindowStyle::Windowed:
+			std::cout << "Windowed" << std::endl;
+			break;
+		case WindowStyle::MaximizedBorderless:
+			std::cout << "Maximized Borderless" << std::endl;
+			break;
+		default:
+			std::cout << "Unknown Window Style" << std::endl;
+		}
 	}
+
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		Console::CreateConsole();
 		static bool mouse_was_exited = false;
@@ -83,7 +91,7 @@ namespace EqWindowed
 		case WM_SIZE:
 		case WM_MOVE:
 		{
-			Wnd->UpdateClientRegionPosition(hwnd);
+			Wnd->UpdateClientRegion();
 			break;
 		}
 		case WM_MOUSEMOVE:
@@ -92,6 +100,8 @@ namespace EqWindowed
 			{
 				mouse_was_exited = false;
 				GetCursorPos(&DInput->exit_cursor_pos);
+				if (DInput->mouse)
+					DInput->mouse->Acquire();
 				std::cout << "Cursor Enter pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
 			}
 			// Register for mouse leave events
@@ -111,6 +121,44 @@ namespace EqWindowed
 			std::cout << "Cursor exit pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
 			if (DInput->mouse)
 				DInput->mouse->Unacquire();
+			break;
+		}
+
+		case WM_SYSKEYDOWN:
+		case WM_KEYDOWN:
+		{
+			if (wParam == VK_RETURN && (GetAsyncKeyState(VK_MENU) & 0x8000)) {
+				// Alt+Enter pressed
+				Wnd->dwStyle += 1;
+				if (Wnd->dwStyle > WindowStyle::MaximizedBorderless)
+					Wnd->dwStyle = WindowStyle::Windowed;
+				printWindowStyle((WindowStyle)Wnd->dwStyle);
+
+				DWORD newStyle = WindowStyles[(WindowStyle)Wnd->dwStyle];
+				DWORD newExStyle = (Wnd->dwStyle == WindowStyle::MaximizedBorderless) ? WS_EX_TOPMOST : 0;
+
+				// Apply the new styles
+				SetWindowLong(Wnd->Handle, GWL_STYLE, newStyle);
+				SetWindowLong(Wnd->Handle, GWL_EXSTYLE, newExStyle);
+
+				if ((WindowStyle)Wnd->dwStyle == WindowStyle::MaximizedBorderless || (WindowStyle)Wnd->dwStyle == WindowStyle::Maximized)
+				{				
+					GetWindowRect(Wnd->Handle, &Wnd->storedDimensions);
+					SetWindowPos(Wnd->Handle, 0, 0, 0,
+						GetSystemMetrics(SM_CXSCREEN),
+						GetSystemMetrics(SM_CYSCREEN),
+						SWP_FRAMECHANGED);
+				}
+				else if ((WindowStyle)Wnd->dwStyle == WindowStyle::Windowed) {
+					SetWindowPos(Wnd->Handle, 0,
+						Wnd->storedDimensions.left,
+						Wnd->storedDimensions.top,
+						Wnd->storedDimensions.right - Wnd->storedDimensions.left,
+						Wnd->storedDimensions.bottom - Wnd->storedDimensions.top,
+						SWP_FRAMECHANGED);
+				}
+				RedrawWindow(Wnd->Handle, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_FRAME | RDW_ERASE);
+			}
 			break;
 		}
 		case WM_LBUTTONDOWN:
@@ -136,30 +184,78 @@ namespace EqWindowed
 		}
 		return 0;
 	}
-	void EqWindow::UpdateClientRegionPosition(HWND hwnd) 
+	void EqWindow::UpdateClientRegion()
 	{
-		RECT windowRect, clientRect;
+		POINT clientTopLeft = { 0, 0 };
 
-		if (GetWindowRect(hwnd, &windowRect) && GetClientRect(hwnd, &clientRect)) 
-		{
-			
-			RECT rect;
-			if (EqMainHooks)
-				rect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // Client area size
-			else
-				rect = { 0, 0, 640, 480 }; // Client area size
-			std::cout << "UpdateClientRegionPosition" << rect.bottom << "x" << rect.right << std::endl;
-			AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
+		// Convert the client area point (0, 0) to screen coordinates
+		ClientToScreen(Handle, &clientTopLeft);
+		X = clientTopLeft.x;
+		Y = clientTopLeft.y;
 
-			int borderWidth = (windowRect.right - windowRect.left - clientRect.right) / 2;
-			int titleBarHeight = (windowRect.bottom - windowRect.top) - clientRect.bottom - borderWidth;
-			UINT dpi = GetDpiForWindow(hwnd);  // Available on Windows 10+
-			borderWidth = MulDiv(borderWidth, dpi, 96);
-			titleBarHeight = MulDiv(titleBarHeight, dpi, 96);
-			X = windowRect.left+ rect.left+(borderWidth*2);
-			Y = windowRect.top + titleBarHeight;
-		}
 	}
+	void EqWindow::SetClientSize(int clientWidth, int clientHeight) {
+		// Get the current window styles
+		DWORD dwStyle = (DWORD)GetWindowLong(Handle, GWL_STYLE);
+		DWORD dwExStyle = (DWORD)GetWindowLong(Handle, GWL_EXSTYLE);
+
+		// Define a RECT with the desired client size
+		RECT desiredRect = { 0, 0, clientWidth, clientHeight };
+
+		// Adjust the rectangle to include non-client areas (title bar, borders, etc.)
+		AdjustWindowRectEx(&desiredRect, dwStyle, FALSE, dwExStyle);
+
+		// Calculate the width and height including non-client areas
+		int windowWidth = desiredRect.right - desiredRect.left;
+		int windowHeight = desiredRect.bottom - desiredRect.top;
+
+		// Get the current window position
+		RECT currentRect;
+		GetWindowRect(Handle, &currentRect);
+
+		// Keep the window's current position
+		int xPos = currentRect.left;
+		int yPos = currentRect.top;
+		
+
+		// Set the window size and position
+		SetWindowPos(Handle, NULL, xPos, yPos, windowWidth, windowHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+		UpdateClientRegion();
+	}
+
+	//void EqWindow::UpdateClientRegionPosition(HWND hwnd) 
+	//{
+	//	RECT windowRect, clientRect;
+
+	//	if (GetWindowRect(hwnd, &windowRect) && GetClientRect(hwnd, &clientRect)) 
+	//	{
+	//		
+	//		RECT rect;
+	//		if (EqMainHooks)
+	//			rect = { 0, 0,EqMainHooks->backbuffer_resolution.width, EqMainHooks->backbuffer_resolution.height }; // Client area size
+	//		else
+	//			rect = { 0, 0, 640, 480 }; // Client area size
+	//		std::cout << "UpdateClientRegionPosition" << rect.bottom << "x" << rect.right << std::endl;
+	//		AdjustWindowRectEx(&rect, WindowStyles[(WindowStyle)Wnd->dwStyle], FALSE, 0);
+
+	//		int borderWidth = (windowRect.right - windowRect.left - clientRect.right) / 2;
+	//		int titleBarHeight = (windowRect.bottom - windowRect.top) - clientRect.bottom - borderWidth;
+	//		UINT dpi = GetDpiForWindow(hwnd);  // Available on Windows 10+
+	//		borderWidth = MulDiv(borderWidth, dpi, 96);
+	//		titleBarHeight = MulDiv(titleBarHeight, dpi, 96);
+	//		X = windowRect.left+ rect.left+(borderWidth*2);
+	//		Y = windowRect.top + titleBarHeight;
+	//		if (EqMainHooks)
+	//		{
+	//			EqMainHooks->front_resolution.width = clientRect.right - clientRect.left;
+	//			EqMainHooks->front_resolution.height = clientRect.bottom - clientRect.top;
+	//			if (EqGFXHooks && EqGFXHooks->device)
+	//				EqGFXHooks->ChangeResolution(EqMainHooks->front_resolution.width, EqMainHooks->front_resolution.height);
+	//			std::cout << std::dec << EqMainHooks->front_resolution.width << "x" << EqMainHooks->front_resolution.height << std::endl;
+	//		}
+	//	}
+	//}
 	void EqWindow::MessageLoop()
 	{
 		WNDCLASSA wc = {};
@@ -174,10 +270,10 @@ namespace EqWindowed
 		}
 		RECT rect = { 0, 0, 640, 480 }; // Client area size
 		// Adjust the rect for the specified window style
-		AdjustWindowRectEx(&rect, dwStyle, FALSE, 0);
+		AdjustWindowRectEx(&rect, WindowStyles[(WindowStyle)Wnd->dwStyle], FALSE, 0);
 
-		Handle = CreateWindowExA(0, "EqWindowed", "EqWindowed", dwStyle, 0, 0, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, NULL, NULL);
-		UpdateClientRegionPosition(Handle);
+		Handle = CreateWindowExA(0, "EqWindowed", "EqWindowed", WindowStyles[(WindowStyle)Wnd->dwStyle], 0, 0, rect.right - rect.left, rect.bottom - rect.top, NULL, NULL, NULL, NULL);
+		SetClientSize(640, 480);
 		ShowWindow(Handle, SW_SHOW);
 		UpdateWindow(Handle);  // This forces the window to be updated and painted
 		MSG msg;

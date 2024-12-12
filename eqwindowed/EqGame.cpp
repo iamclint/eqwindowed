@@ -17,6 +17,7 @@ namespace EqWindowed
     }
     LONG WINAPI hSetWindowLongA(HWND wnd, int index, long dwNewLong)
     {
+        std::cout << "SetWindowLog" << std::endl;
         if (index == -0x4)
         {
             Wnd->eqMainWndProc = (void*)dwNewLong;
@@ -47,7 +48,7 @@ namespace EqWindowed
         std::cout << "Create Window " << X << " " << Y << " " << nWidth << " " << nHeight << std::endl;
         if (EqWindowed::Wnd->Handle && EqMainHooks)
         {
-            EqWindowed::Wnd->AdjustClientSize(nWidth, nHeight);
+            Wnd->SetClientSize(nWidth, nHeight);
         }
 
         return EqWindowed::Wnd->Handle;

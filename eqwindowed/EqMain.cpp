@@ -57,9 +57,9 @@ namespace EqWindowed
 		if (!(EqMainHooks->SecondarySurface->IsLost()==DDERR_SURFACELOST) && !(EqMainHooks->PrimarySurface->IsLost() == DDERR_SURFACELOST))
 		{
 
-			RECT srcRect = { 0, 0, EqMainHooks->res.width,EqMainHooks->res.height }; // Source rectangle
-			RECT destRect = { Wnd->X, Wnd->Y,Wnd->X+EqMainHooks->res.width , Wnd->Y+EqMainHooks->res.height};// Wnd->Width + Wnd->X, Wnd->Height + Wnd->Y
-
+			RECT srcRect = { 0, 0, EqMainHooks->backbuffer_resolution.width,EqMainHooks->backbuffer_resolution.height }; // Source rectangle
+			RECT destRect = { Wnd->X, Wnd->Y,Wnd->X+EqMainHooks->front_resolution.width , Wnd->Y+EqMainHooks->front_resolution.height};// Wnd->Width + Wnd->X, Wnd->Height + Wnd->Y
+		//	std::cout << "Flip [" << Wnd->X << "," << Wnd->Y << " [" << Wnd->X + EqMainHooks->res.width << "," << Wnd->Y + EqMainHooks->res.height << "]" << std::endl;
 			HRESULT result = surface->Blt(&destRect, EqMainHooks->SecondarySurface, &srcRect, DDBLT_WAIT, nullptr);
 			*surface = *EqMainHooks->SecondarySurface;
 		}
@@ -146,8 +146,8 @@ namespace EqWindowed
 		surface_desc.dwSize = sizeof(DDSURFACEDESC);
 		surface_desc.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT;
 		surface_desc.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN | DDSCAPS_SYSTEMMEMORY;
-		surface_desc.dwWidth = EqMainHooks->res.width;  // Match the primary surface resolution
-		surface_desc.dwHeight = EqMainHooks->res.height; // Match the primary surface resolution
+		surface_desc.dwWidth = EqMainHooks->backbuffer_resolution.width;  // Match the primary surface resolution
+		surface_desc.dwHeight = EqMainHooks->backbuffer_resolution.height; // Match the primary surface resolution
 		SetPixelFormat(surface_desc.ddpfPixelFormat);
 		HRESULT result = EqMainHooks->hook_CreateSurface.original(hCreateSurface)(lplpDD, &surface_desc, &EqMainHooks->SecondarySurface, NULL);
 		if (!SUCCEEDED(result))
@@ -174,7 +174,7 @@ namespace EqWindowed
 				LPDIRECTDRAWCLIPPER lpClipper;
 				lplpDD->CreateClipper(0, &lpClipper, NULL);
 				lpClipper->SetHWnd(0, EqWindowed::Wnd->Handle);
-				RECT clipRect = { 0, 0, EqMainHooks->res.width, EqMainHooks->res.height }; // x, y, width, height
+				RECT clipRect = { 0, 0, EqMainHooks->backbuffer_resolution.width, EqMainHooks->backbuffer_resolution.height }; // x, y, width, height
 				EqMainHooks->PrimarySurface->SetClipper(lpClipper);
 				lpClipper->Release();
 				std::cout << "Surfaces created!" << std::endl;

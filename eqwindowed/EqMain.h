@@ -56,7 +56,8 @@ namespace EqWindowed
     {
     public:
         IDirectDraw* dd=nullptr;
-        Resolution res = { 640, 480 };
+        Resolution backbuffer_resolution = { 640, 480 };
+        Resolution front_resolution = { 640, 480 };
         
         IDirectDraw* originalDirectDraw;
         IDirectDrawSurface* PrimarySurface = nullptr;

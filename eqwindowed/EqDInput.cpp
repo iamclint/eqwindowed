@@ -85,7 +85,6 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hKeyboardAcquire(LPDIRECTINPUTDEVICE8W* device)
 	{
-		std::cout << "Request Keyboard Acquire" << std::endl;
 		HRESULT result = S_OK;
 		if (Wnd->isFocused)
 			result = DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
