@@ -13,6 +13,7 @@ namespace EqWindowed
 		VTableHook hook_Reset;
 		IDirect3DDevice8* device;
 		IDirect3DSurface8* surface;
+		D3DPRESENT_PARAMETERS present;
 		DWORD t3dChangeDeviceResolution;
 		DWORD base;
 		void ChangeResolution(UINT width, UINT height);

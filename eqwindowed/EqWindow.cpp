@@ -48,29 +48,45 @@ namespace EqWindowed
 				return DefWindowProcA(hwnd, msg, wParam, lParam);
 			}
 		}
+		case WM_KILLFOCUS:
+		{
+
+			Wnd->isFocused = false;
+			std::cout << "Deactivate" << std::endl;
+			if (DInput)
+			{
+				if (DInput->mouse && SUCCEEDED(DInput->mouse->Poll()))
+					DInput->mouse->Unacquire();
+				if (DInput->keyboard && SUCCEEDED(DInput->keyboard->Poll()))
+					DInput->keyboard->Unacquire();
+			}
+			break;
+		}
 		case WM_ACTIVATE:
 		{
-			if (DInput && DInput->keyboard)
+			if (DInput)
 			{
-				if (GetForegroundWindow() == Wnd->Handle)
-				{
+				//if (GetForegroundWindow() == Wnd->Handle)
+				//{
 					DInput->need_keystate_reset = true;
 					DInput->key_release_index = 0;
 					Wnd->isFocused = true;
 					std::cout << "Activate" << std::endl;
-					if (DInput->mouse)
+					if (DInput->mouse && FAILED(DInput->mouse->Poll()))
 						DInput->mouse->Acquire();
-					DInput->keyboard->Acquire();
-				}
-				else
-				{
+					if (DInput->keyboard && FAILED(DInput->keyboard->Poll()))
+						DInput->keyboard->Acquire();
+				//}
+				//else
+				//{
 
-					Wnd->isFocused = false;
-					std::cout << "Deactivate" << std::endl;
-					if (DInput->mouse)
-						DInput->mouse->Unacquire();
-					DInput->keyboard->Unacquire();
-				}
+				//	Wnd->isFocused = false;
+				//	std::cout << "Deactivate" << std::endl;
+				//	if (DInput->mouse)
+				//		DInput->mouse->Unacquire();
+				//	if (DInput->keyboard)
+				//		DInput->keyboard->Unacquire();
+				//}
 			}
 			break;
 		}
@@ -92,6 +108,14 @@ namespace EqWindowed
 		case WM_MOVE:
 		{
 			Wnd->UpdateClientRegion();
+			break;
+		}
+		case WM_EXITSIZEMOVE:
+		{
+			if (EqGFXHooks)
+			{
+				EqGFXHooks->ChangeResolution(Wnd->Width, Wnd->Height);
+			}
 			break;
 		}
 		case WM_MOUSEMOVE:
@@ -220,7 +244,11 @@ namespace EqWindowed
 
 		// Set the window size and position
 		SetWindowPos(Handle, NULL, xPos, yPos, windowWidth, windowHeight, SWP_NOZORDER | SWP_NOACTIVATE);
-
+		if (EqMainHooks)
+		{
+			EqMainHooks->front_resolution.width = clientWidth;
+			EqMainHooks->front_resolution.height = clientHeight;
+		}
 		UpdateClientRegion();
 	}
 

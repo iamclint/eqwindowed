@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "EqDInput.h"
 #include "EqWindowed.h"
-
+#include <array>
 namespace EqWindowed
 {
 	HRESULT WINAPI hKeyboardSetCooperativeLevel(LPDIRECTINPUTDEVICE8W* device, HWND wnd, DWORD flags)
@@ -50,30 +50,27 @@ namespace EqWindowed
 	HRESULT WINAPI hKeyboardGetDeviceData(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
 	{
 		HRESULT result = DInput->hook_KeyboardGetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size, data, event_count_max, unk);
-		//if (SUCCEEDED(result))
-		//{
-		//	for (DWORD i = 0; i < *event_count_max; ++i)
-		//	{
-		//		// Process each event
-		//		if (data[i].dwData & 0x80)
-		//		{
-		//			// Key was pressed
-		//			printf("Key pressed: %d\n", data[i].dwOfs);
-		//		}
-		//		else
-		//		{
-		//			// Key was released
-		//			printf("Key released: %d\n", data[i].dwOfs);
-		//		}
-		//	}
-		//}
+		static std::array<bool, 256> keyStates = { false };
+		if (SUCCEEDED(result) && event_count_max && *event_count_max > 0)
+		{
+			for (DWORD i = 0; i < *event_count_max; ++i)
+			{
+				DWORD key = data[i].dwOfs;  // Key code (index in the key state array)
+				bool pressed = (data[i].dwData & 0x80) != 0; // Key state: high bit indicates pressed
+				keyStates[key] = pressed;
+			}
+		}
 
 		if (DInput->need_keystate_reset)
 		{
-			*event_count_max = 1;
-			data[0].dwData = 0;
-			data[0].dwOfs = DInput->key_releases.at(DInput->key_release_index);
-			std::cout << "Release key: " << data[0].dwOfs << std::endl;
+			if (keyStates[DInput->key_releases.at(DInput->key_release_index)])
+			{
+				*event_count_max = 1;
+				data[0].dwData = 0;
+				data[0].dwOfs = DInput->key_releases.at(DInput->key_release_index);
+				keyStates[data[0].dwOfs] = false;
+				std::cout << "Release key: " << data[0].dwOfs << std::endl;
+			}
 			result = S_OK;
 			DInput->key_release_index++;
 			if (DInput->key_release_index >= DInput->key_releases.size())
@@ -85,9 +82,10 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hKeyboardAcquire(LPDIRECTINPUTDEVICE8W* device)
 	{
+		//std::cout << "Keyboard Acquire " << Wnd->isFocused << std::endl;
 		HRESULT result = S_OK;
-		if (Wnd->isFocused)
-			result = DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
+	//	if (Wnd->isFocused)
+			DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
 		return result;
 	}
 	HRESULT WINAPI hKeyboardRelease(LPDIRECTINPUTDEVICE8W* device)
@@ -114,6 +112,7 @@ namespace EqWindowed
 			if (DInput->mouse)
 			{
 				*device = DInput->mouse;
+				DInput->mouse->Acquire();
 				return S_OK;
 			}
 			else
