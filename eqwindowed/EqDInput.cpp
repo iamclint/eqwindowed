@@ -18,87 +18,75 @@ namespace EqWindowed
 		HRESULT result = DInput->hook_MouseSetCooperativeLevel.original(hMouseSetCooperativeLevel)(device, wnd, flags);
 		return result;
 	}
-
-	HRESULT WINAPI hMouseGetDeviceData(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA mdata, DWORD* event_count_max, LPUNKNOWN unk)
+	HRESULT WINAPI hMouseGetDeviceState(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA data)
 	{
-		HRESULT result = DInput->hook_MouseGetDeviceData.original(hMouseGetDeviceData)(device, buffer_size, mdata, event_count_max, unk);
-		//for (DWORD i = 0; i < *event_count_max; i++) {
-		//	DIDEVICEOBJECTDATA data = mdata[i];
-
-		//	std::cout << "Mouse Event " << i + 1 << ": ";
-
-		//	if (data.dwOfs == DIMOFS_X) {
-		//		std::cout << "Move X: " << data.dwData << std::endl;
-		//	}
-		//	else if (data.dwOfs == DIMOFS_Y) {
-		//		std::cout << "Move Y: " << data.dwData << std::endl;
-		//	}
-		//	else if (data.dwOfs == DIMOFS_BUTTON0) {
-		//		std::cout << "Left Button: " << (data.dwData ? "Pressed" : "Released") << std::endl;
-		//	}
-		//	else if (data.dwOfs == DIMOFS_BUTTON1) {
-		//		std::cout << "Right Button: " << (data.dwData ? "Pressed" : "Released") << std::endl;
-		//	}
-		//	else if (data.dwOfs == DIMOFS_BUTTON2) {
-		//		std::cout << "Middle Button: " << (data.dwData ? "Pressed" : "Released") << std::endl;
-		//	}
-		//}
-
+		HRESULT result = DInput->hook_MouseGetDeviceState.original(hMouseGetDeviceState)(device, buffer_size, data);
+		if (!Wnd->isFocused || DInput->need_mousestate_reset || GetTickCount64()-DInput->refocused_time<250) //give time to refocus without hitting a click event
+		{
+				ZeroMemory(data, buffer_size);
+		}
+		return result;
+	}
+	HRESULT WINAPI hKeyboardGetDeviceState(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPBYTE  data)
+	{
+		HRESULT result = DInput->hook_KeyboardGetDeviceState.original(hKeyboardGetDeviceState)(device, buffer_size, data);
+		if (!Wnd->isFocused || DInput->need_mousestate_reset)
+		{
+			ZeroMemory(data, buffer_size);
+		}
+		return DI_OK;
+	}
+	HRESULT WINAPI hMouseGetDeviceData(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
+	{
+		int buffer_count = *event_count_max;
+		HRESULT result = DInput->hook_MouseGetDeviceData.original(hMouseGetDeviceData)(device, buffer_size, data, event_count_max, unk);
+		if (!Wnd->isFocused || DInput->need_mousestate_reset)
+		{
+			if (*event_count_max > 0)
+			{
+				ZeroMemory(data, size_t(buffer_size * buffer_count));
+				DInput->need_mousestate_reset  = false; // Reset flag
+			}
+		}
 		return result;
 	}
 
 	HRESULT WINAPI hKeyboardGetDeviceData(LPDIRECTINPUTDEVICE8W* device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
 	{
-		HRESULT result = DInput->hook_KeyboardGetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size, data, event_count_max, unk);
-		static std::array<bool, 256> keyStates = { false };
-		if (SUCCEEDED(result) && event_count_max && *event_count_max > 0)
+		int buffer_count = *event_count_max;
+		HRESULT result = DInput->hook_KeyboardGetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size, data, event_count_max, unk);;
+		if (DInput->need_keystate_reset || !Wnd->isFocused)
 		{
-			for (DWORD i = 0; i < *event_count_max; ++i)
-			{
-				DWORD key = data[i].dwOfs;  // Key code (index in the key state array)
-				bool pressed = (data[i].dwData & 0x80) != 0; // Key state: high bit indicates pressed
-				keyStates[key] = pressed;
-			}
-		}
+			ZeroMemory(data, size_t(buffer_size * buffer_count));
 
-		if (DInput->need_keystate_reset)
-		{
-			if (keyStates[DInput->key_releases.at(DInput->key_release_index)])
-			{
-				*event_count_max = 1;
-				data[0].dwData = 0;
-				data[0].dwOfs = DInput->key_releases.at(DInput->key_release_index);
-				keyStates[data[0].dwOfs] = false;
-				std::cout << "Release key: " << data[0].dwOfs << std::endl;
-			}
-			result = S_OK;
-			DInput->key_release_index++;
-			if (DInput->key_release_index >= DInput->key_releases.size())
-				DInput->need_keystate_reset = false;
+			DInput->need_keystate_reset = false;
+			return DI_OK;
 		}
-
 
 		return result;
 	}
+	HRESULT WINAPI hMouseAcquire(LPDIRECTINPUTDEVICE8W* device)
+	{
+		DInput->hook_MouseAcquire.original(hMouseAcquire)(device);
+		DInput->need_mousestate_reset = true;
+		return DI_OK;
+	}
 	HRESULT WINAPI hKeyboardAcquire(LPDIRECTINPUTDEVICE8W* device)
 	{
-		//std::cout << "Keyboard Acquire " << Wnd->isFocused << std::endl;
-		HRESULT result = S_OK;
-	//	if (Wnd->isFocused)
-			DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
-		return result;
+		DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
+		return DI_OK;
 	}
 	HRESULT WINAPI hKeyboardRelease(LPDIRECTINPUTDEVICE8W* device)
 	{
 		std::cout << "Request Keyboard release" << std::endl;
-		return S_OK;
+		return DI_OK;
 		//HRESULT  result = DInput->hook_KeyboardRelease.original(hKeyboardRelease)(device);
 		//return result;
 	}
 	HRESULT WINAPI hMouseRelease(LPDIRECTINPUTDEVICE8W* device)
 	{
 		std::cout << "Request Mouse release" << std::endl;
-		return S_OK;
+		return DI_OK;
 		//HRESULT result = DInput->hook_KeyboardRelease.original(hKeyboardRelease)(device);
 		//return result;
 	}
@@ -113,14 +101,16 @@ namespace EqWindowed
 			{
 				*device = DInput->mouse;
 				DInput->mouse->Acquire();
-				return S_OK;
+				return DI_OK;
 			}
 			else
 				DInput->mouse = *device;
 			void** vtable = *(void***)(*device);
 			DInput->hook_MouseSetCooperativeLevel = VTableHook(vtable, 13, hMouseSetCooperativeLevel);
 			DInput->hook_MouseGetDeviceData = VTableHook(vtable, 10, hMouseGetDeviceData);
+			DInput->hook_MouseGetDeviceState = VTableHook(vtable, 9, hMouseGetDeviceState);
 			DInput->hook_MouseRelease = VTableHook(vtable, 2, hMouseRelease);
+			DInput->hook_MouseAcquire = VTableHook(vtable, 7, hMouseAcquire);
 			std::cout << "DInput Mouse" << std::endl;
 		}
 		if (IsEqualGUID(guid, GUID_SysKeyboard))
@@ -129,13 +119,14 @@ namespace EqWindowed
 			if (DInput->keyboard)
 			{
 				*device = DInput->keyboard;
-				return S_OK;
+				return DI_OK;
 			}
 			else
 				DInput->keyboard = *device;
 			void** vtable = *(void***)(*device);
 			DInput->hook_KeyboardSetCooperativeLevel = VTableHook(vtable, 13, hKeyboardSetCooperativeLevel);
 			DInput->hook_KeyboardGetDeviceData = VTableHook(vtable, 10, hKeyboardGetDeviceData);
+			DInput->hook_KeyboardGetDeviceState = VTableHook(vtable, 9, hKeyboardGetDeviceState);
 			DInput->hook_KeyboardAcquire = VTableHook(vtable, 7, hKeyboardAcquire);
 			DInput->hook_KeyboardRelease = VTableHook(vtable, 2, hKeyboardRelease);
 			std::cout << "DInput Keyboard" << std::endl;
@@ -149,16 +140,16 @@ namespace EqWindowed
 	HRESULT WINAPI hReleaseDinput(LPDIRECTINPUT8* ppvOut)
 	{
 		std::cout << "Release Dinput" << std::endl;
-		return S_OK;
+		return DI_OK;
 	}
 	HRESULT WINAPI hDirectInputCreate(HINSTANCE hinst, DWORD dwVersion, REFIID riidltf, LPDIRECTINPUT8* ppvOut, LPDIRECTINPUT8 punkOuter)
 	{
 		std::cout << "Direct Input Hook -- Version: " << dwVersion << std::endl;
-		HRESULT res = S_OK;
+		HRESULT res = DI_OK;
 		if (!DInput->dinput)
 		{
 			res = DInput->hook_DirectInput.original(hDirectInputCreate)(hinst, dwVersion, riidltf, ppvOut, punkOuter);
-			if (res == S_OK)
+			if (res == DI_OK)
 			{
 				DInput->dinput = *ppvOut;
 				void** vtable = *(void***)(*ppvOut);

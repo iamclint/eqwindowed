@@ -16,6 +16,9 @@ namespace EqWindowed
 		POINT exit_cursor_pos;
 		int key_release_index = 0;
 		bool need_keystate_reset = false;
+		bool need_mousestate_reset = false;
+		bool wait_lbutton_release = false;
+		ULONGLONG refocused_time = 0;
 		LPDIRECTINPUTDEVICE8W keyboard = nullptr;
 		LPDIRECTINPUTDEVICE8W mouse = nullptr;
 		LPDIRECTINPUT8 dinput = nullptr;
@@ -23,10 +26,13 @@ namespace EqWindowed
 		VTableHook hook_KeyboardSetCooperativeLevel;
 		VTableHook hook_MouseSetCooperativeLevel;
 		VTableHook hook_KeyboardGetDeviceData;
+		VTableHook hook_KeyboardGetDeviceState;
 		VTableHook hook_KeyboardAcquire;
 		VTableHook hook_KeyboardRelease;
 		VTableHook hook_MouseGetDeviceData;
+		VTableHook hook_MouseGetDeviceState;
 		VTableHook hook_MouseRelease;
+		VTableHook hook_MouseAcquire;
 		VTableHook hook_CreateDevice;
 		VTableHook hook_ReleaseDinput;
 		void init(HMODULE handle);

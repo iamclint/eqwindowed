@@ -27,7 +27,7 @@ namespace EqWindowed
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		Console::CreateConsole();
 		static bool mouse_was_exited = false;
-//		std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
+		//std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
 		static bool isCursorHidden = false;
 		switch (msg) {
 		case WM_SETCURSOR: {
@@ -48,9 +48,20 @@ namespace EqWindowed
 				return DefWindowProcA(hwnd, msg, wParam, lParam);
 			}
 		}
+		case WM_NCACTIVATE:
+		{
+			DInput->need_keystate_reset = true;
+			DInput->need_mousestate_reset = true;
+			std::cout << "NCActivate" << std::endl;
+			if (Wnd->eqMainWndProc)
+			LRESULT eqm = reinterpret_cast<LRESULT(CALLBACK*)(HWND, UINT, WPARAM, LPARAM)>(Wnd->eqMainWndProc)(hwnd, msg, wParam, lParam);
+			return DefWindowProcA(hwnd, msg, wParam, lParam);
+			break;
+		}
 		case WM_KILLFOCUS:
 		{
-
+			DInput->need_keystate_reset = true;
+			DInput->need_mousestate_reset = true;
 			Wnd->isFocused = false;
 			std::cout << "Deactivate" << std::endl;
 			if (DInput)
@@ -62,33 +73,21 @@ namespace EqWindowed
 			}
 			break;
 		}
-		case WM_ACTIVATE:
+		case WM_SETFOCUS:
 		{
 			if (DInput)
 			{
-				//if (GetForegroundWindow() == Wnd->Handle)
-				//{
-					DInput->need_keystate_reset = true;
-					DInput->key_release_index = 0;
-					Wnd->isFocused = true;
-					std::cout << "Activate" << std::endl;
-					if (DInput->mouse && FAILED(DInput->mouse->Poll()))
-						DInput->mouse->Acquire();
-					if (DInput->keyboard && FAILED(DInput->keyboard->Poll()))
-						DInput->keyboard->Acquire();
-				//}
-				//else
-				//{
-
-				//	Wnd->isFocused = false;
-				//	std::cout << "Deactivate" << std::endl;
-				//	if (DInput->mouse)
-				//		DInput->mouse->Unacquire();
-				//	if (DInput->keyboard)
-				//		DInput->keyboard->Unacquire();
-				//}
+				DInput->need_keystate_reset = true;
+				DInput->need_mousestate_reset = true;
+				DInput->refocused_time = GetTickCount64();
+				Wnd->isFocused = true;
+				std::cout << "Activate" << std::endl;
+				if (DInput->mouse && FAILED(DInput->mouse->Poll()))
+					DInput->mouse->Acquire();
+				if (DInput->keyboard && FAILED(DInput->keyboard->Poll()))
+					DInput->keyboard->Acquire();
+				break;
 			}
-			break;
 		}
 		case WM_QUIT:
 		case WM_DESTROY:
@@ -194,7 +193,6 @@ namespace EqWindowed
 		case WM_MBUTTONDOWN:
 		case WM_MBUTTONUP:
 		case WM_MBUTTONDBLCLK:
-		case WM_SETFOCUS:
 			if (Wnd->eqMainWndProc)
 			{
 				if (DInput && DInput->keyboard)
