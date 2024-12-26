@@ -7,7 +7,7 @@ namespace EqWindowed
 {
 	std::unordered_map<WindowStyle, DWORD> WindowStyles = {
 		{ Windowed,  WS_OVERLAPPEDWINDOW | WS_VISIBLE },
-		{ Maximized, WS_OVERLAPPEDWINDOW | WS_VISIBLE },
+		//{ Maximized, WS_OVERLAPPEDWINDOW | WS_VISIBLE },
 		{ MaximizedBorderless, WS_POPUPWINDOW | WS_VISIBLE }
 	};
 
@@ -121,12 +121,15 @@ namespace EqWindowed
 		{
 			if (mouse_was_exited)
 			{
+				Wnd->isFocused = true;
 				mouse_was_exited = false;
 				GetCursorPos(&DInput->exit_cursor_pos);
 				if (DInput->mouse)
 					DInput->mouse->Acquire();
 				std::cout << "Cursor Enter pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
+
 			}
+
 			// Register for mouse leave events
 			TRACKMOUSEEVENT tme;
 			tme.cbSize = sizeof(TRACKMOUSEEVENT);
@@ -139,6 +142,7 @@ namespace EqWindowed
 		}
 		case WM_MOUSELEAVE:
 		{
+			Wnd->isFocused = false;
 			mouse_was_exited = true;
 			GetCursorPos(&DInput->exit_cursor_pos);
 			std::cout << "Cursor exit pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
@@ -164,7 +168,7 @@ namespace EqWindowed
 				SetWindowLong(Wnd->Handle, GWL_STYLE, newStyle);
 				SetWindowLong(Wnd->Handle, GWL_EXSTYLE, newExStyle);
 
-				if ((WindowStyle)Wnd->dwStyle == WindowStyle::MaximizedBorderless || (WindowStyle)Wnd->dwStyle == WindowStyle::Maximized)
+				if ((WindowStyle)Wnd->dwStyle == WindowStyle::MaximizedBorderless)// || (WindowStyle)Wnd->dwStyle == WindowStyle::Maximized)
 				{				
 					GetWindowRect(Wnd->Handle, &Wnd->storedDimensions);
 					SetWindowPos(Wnd->Handle, 0, 0, 0,
@@ -181,6 +185,7 @@ namespace EqWindowed
 						SWP_FRAMECHANGED);
 				}
 				RedrawWindow(Wnd->Handle, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_FRAME | RDW_ERASE);
+				EqGFXHooks->reset_viewport=true;
 			}
 			break;
 		}

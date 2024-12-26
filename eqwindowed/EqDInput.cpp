@@ -8,19 +8,19 @@ namespace EqWindowed
 	{
 		std::cout << "Keyboard set cooperative level " << device << " " << wnd << " " << flags << std::endl;
 		flags = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
-		HRESULT result = DInput->hook_KeyboardSetCooperativeLevel.original(hKeyboardSetCooperativeLevel)(device, wnd, flags);
+		HRESULT result = DInput->hook_SetCooperativeLevel.original(hKeyboardSetCooperativeLevel)(device, wnd, flags);
 		return result;
 	}
 	HRESULT WINAPI hMouseSetCooperativeLevel(LPDIRECTINPUTDEVICE8W device, HWND wnd, DWORD flags)
 	{
 		std::cout << "Mouse set cooperative level " << device << " " << wnd << " " << flags << std::endl;
 		flags = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
-		HRESULT result = DInput->hook_MouseSetCooperativeLevel.original(hMouseSetCooperativeLevel)(device, wnd, flags);
+		HRESULT result = DInput->hook_SetCooperativeLevel.original(hMouseSetCooperativeLevel)(device, wnd, flags);
 		return result;
 	}
 	HRESULT WINAPI hMouseGetDeviceState(LPDIRECTINPUTDEVICE8W device, size_t buffer_size, LPDIDEVICEOBJECTDATA data)
 	{
-		HRESULT result = DInput->hook_MouseGetDeviceState.original(hMouseGetDeviceState)(device, buffer_size, data);
+		HRESULT result = DInput->hook_GetDeviceState.original(hMouseGetDeviceState)(device, buffer_size, data);
 		//if (!Wnd->isFocused || DInput->need_mousestate_reset || GetTickCount64()-DInput->refocused_time<250) //give time to refocus without hitting a click event
 		//{
 		//		ZeroMemory(data, buffer_size);
@@ -29,7 +29,7 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hKeyboardGetDeviceState(LPDIRECTINPUTDEVICE8W device, size_t buffer_size, LPDIDEVICEOBJECTDATA  data)
 	{
-		HRESULT result = DInput->hook_KeyboardGetDeviceState.original(hKeyboardGetDeviceState)(device, buffer_size, data);
+		HRESULT result = DInput->hook_GetDeviceState.original(hKeyboardGetDeviceState)(device, buffer_size, data);
 		//if (!Wnd->isFocused || DInput->need_mousestate_reset)
 		//{
 		//	ZeroMemory(data, buffer_size);
@@ -39,7 +39,7 @@ namespace EqWindowed
 	HRESULT WINAPI hMouseGetDeviceData(LPDIRECTINPUTDEVICE8W device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
 	{
 		int buffer_count = *event_count_max;
-		HRESULT result = DInput->hook_MouseGetDeviceData.original(hMouseGetDeviceData)(device, buffer_size, data, event_count_max, unk);
+		HRESULT result = DInput->hook_GetDeviceData.original(hMouseGetDeviceData)(device, buffer_size, data, event_count_max, unk);
 		//if (!Wnd->isFocused || DInput->need_mousestate_reset)
 		//{
 		//	ZeroMemory(data, size_t(buffer_size * buffer_count));
@@ -51,17 +51,40 @@ namespace EqWindowed
 	HRESULT WINAPI hKeyboardGetDeviceData(LPDIRECTINPUTDEVICE8W device, size_t buffer_size, LPDIDEVICEOBJECTDATA data, DWORD* event_count_max, LPUNKNOWN unk)
 	{
 		int buffer_count = *event_count_max;
-		HRESULT result = DInput->hook_KeyboardGetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size, data, event_count_max, unk);;
+		HRESULT result = DInput->hook_GetDeviceData.original(hKeyboardGetDeviceData)(device, buffer_size, data, event_count_max, unk);;
+
+		BYTE keyboardState[256];
+		HRESULT hr = device->GetDeviceState(sizeof(keyboardState), (LPVOID)&keyboardState);
+		if (SUCCEEDED(hr)) {
+			bool shiftPressed = (keyboardState[DIK_LSHIFT] & 0x80) || (keyboardState[DIK_RSHIFT] & 0x80);
+			bool ctrlPressed = (keyboardState[DIK_LCONTROL] & 0x80) || (keyboardState[DIK_RCONTROL] & 0x80);
+			bool altPressed = (keyboardState[DIK_LMENU] & 0x80) || (keyboardState[DIK_RMENU] & 0x80);
+			if (altPressed)
+			{
+				for (DWORD i = 0; i < *event_count_max; i++)
+				{
+					if (data[i].dwOfs == DIK_RETURN) //enter
+					{
+						std::cout << "alt enter pressed from dinput" << std::endl;
+						DInput->need_keystate_reset = true;
+						break;
+					}
+				}
+			}
+
+		}
+
 		if (DInput->need_keystate_reset || !Wnd->isFocused)
 		{
 			ZeroMemory(data, size_t(buffer_size * buffer_count));
 			//Release all modifier keys
 			if (buffer_count == 0x20) //the call from eqgame.exe has a buffer count of 0x20.. this is really the only time we need to clear these
 			{
-				data[0].dwOfs = 0x38; //alt
-				data[1].dwOfs = 0x1D;
-				data[2].dwOfs = 0x2A;
-				data[3].dwOfs = 0x36;
+				data[0].dwOfs = DIK_LMENU;
+				data[1].dwOfs = DIK_LCONTROL;
+				data[2].dwOfs = DIK_LSHIFT;
+				data[3].dwOfs = DIK_RSHIFT;
+
 			}
 			DInput->need_keystate_reset = false;
 			return DI_OK;
@@ -69,15 +92,39 @@ namespace EqWindowed
 
 		return result;
 	}
+	void ResetCursorLocation()
+	{
+		GetCursorPos(&DInput->exit_cursor_pos);
+		ScreenToClient(Wnd->Handle, &DInput->exit_cursor_pos);
+		POINT* GameCursor = (POINT*)0x8092E8;
+		GameCursor->x = DInput->exit_cursor_pos.x;
+		GameCursor->y = DInput->exit_cursor_pos.y;
+	}
+
 	HRESULT WINAPI hMouseAcquire(LPDIRECTINPUTDEVICE8W device)
 	{
-		DInput->hook_MouseAcquire.original(hMouseAcquire)(device);
-		DInput->need_mousestate_reset = true;
+		if (Wnd->isFocused)
+		{
+			ResetCursorLocation();
+			DInput->hook_Acquire.original(hMouseAcquire)(device);
+			DInput->need_mousestate_reset = true;
+		}
 		return DI_OK;
 	}
 	HRESULT WINAPI hKeyboardAcquire(LPDIRECTINPUTDEVICE8W device)
 	{
-		DInput->hook_KeyboardAcquire.original(hKeyboardAcquire)(device);
+		DInput->hook_Acquire.original(hKeyboardAcquire)(device);
+		return DI_OK;
+	}
+	HRESULT WINAPI hKeyboardUnacquire(LPDIRECTINPUTDEVICE8W device)
+	{
+		DInput->hook_Unacquire.original(hKeyboardAcquire)(device);
+		return DI_OK;
+	}
+	HRESULT WINAPI hMouseUnacquire(LPDIRECTINPUTDEVICE8W device)
+	{
+		ResetCursorLocation();
+		DInput->hook_Unacquire.original(hMouseUnacquire)(device);
 		return DI_OK;
 	}
 	HRESULT WINAPI hKeyboardRelease(LPDIRECTINPUTDEVICE8W device)
@@ -135,6 +182,14 @@ namespace EqWindowed
 			return hKeyboardAcquire(device);
 		return DI_OK;
 	}
+	HRESULT WINAPI hGenericUnAcquire(LPDIRECTINPUTDEVICE8W device)
+	{
+		if (device == DInput->mouse)
+			return hMouseUnacquire(device);
+		else if (device == DInput->keyboard)
+			return hKeyboardUnacquire(device);
+		return DI_OK;
+	}
 	HRESULT WINAPI hCreateDevice(LPDIRECTINPUT8* ppvOut, GUID& guid, LPDIRECTINPUTDEVICE8W* device, LPUNKNOWN unk)
 	{
 		HRESULT result = DInput->hook_CreateDevice.original(hCreateDevice)(ppvOut, guid, device, unk);
@@ -153,11 +208,12 @@ namespace EqWindowed
 				DInput->mouse = *device;
 			void** vtable = *(void***)(DInput->mouse);
 			std::cout << "Mouse VTABLE 0x" << std::hex << vtable << std::endl;
-			DInput->hook_MouseSetCooperativeLevel = VTableHook(vtable, 13, hGenericSetCooperativeLevel);
-			DInput->hook_MouseGetDeviceData = VTableHook(vtable, 10, hGenericGetDeviceData);
-			DInput->hook_MouseGetDeviceState = VTableHook(vtable, 9, hGenericGetDeviceState);
-			DInput->hook_MouseRelease = VTableHook(vtable, 2, hGenericRelease);
-			DInput->hook_MouseAcquire = VTableHook(vtable, 7, hGenericAcquire);
+			DInput->hook_SetCooperativeLevel = VTableHook(vtable, 13, hGenericSetCooperativeLevel);
+			DInput->hook_GetDeviceData = VTableHook(vtable, 10, hGenericGetDeviceData);
+			DInput->hook_GetDeviceState = VTableHook(vtable, 9, hGenericGetDeviceState);
+			DInput->hook_Release = VTableHook(vtable, 2, hGenericRelease);
+			DInput->hook_Acquire = VTableHook(vtable, 7, hGenericAcquire);
+			DInput->hook_Unacquire = VTableHook(vtable, 8, hGenericUnAcquire);
 			std::cout << "DInput Mouse" << std::endl;
 		}
 		else if (IsEqualGUID(guid, GUID_SysKeyboard))
@@ -172,11 +228,11 @@ namespace EqWindowed
 				DInput->keyboard = *device;
 			void** vtable = *(void***)(DInput->keyboard);
 			std::cout << "Keyboard VTABLE 0x" << std::hex << vtable << std::endl;
-			DInput->hook_KeyboardSetCooperativeLevel = VTableHook(vtable, 13, hGenericSetCooperativeLevel);
-			DInput->hook_KeyboardGetDeviceData = VTableHook(vtable, 10, hGenericGetDeviceData);
-			DInput->hook_KeyboardGetDeviceState = VTableHook(vtable, 9, hGenericGetDeviceState);
-			DInput->hook_KeyboardRelease = VTableHook(vtable, 2, hGenericRelease);
-			DInput->hook_KeyboardAcquire = VTableHook(vtable, 7, hGenericAcquire);
+			DInput->hook_SetCooperativeLevel = VTableHook(vtable, 13, hGenericSetCooperativeLevel);
+			DInput->hook_GetDeviceData = VTableHook(vtable, 10, hGenericGetDeviceData);
+			DInput->hook_GetDeviceState = VTableHook(vtable, 9, hGenericGetDeviceState);
+			DInput->hook_Release = VTableHook(vtable, 2, hGenericRelease);
+			DInput->hook_Acquire = VTableHook(vtable, 7, hGenericAcquire);
 			std::cout << "DInput Keyboard" << std::endl;
 
 		}

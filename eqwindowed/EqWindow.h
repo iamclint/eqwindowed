@@ -7,7 +7,7 @@ namespace EqWindowed
 	enum WindowStyle
 	{
 		Windowed,
-		Maximized,
+		//Maximized,
 		MaximizedBorderless
 	};
 

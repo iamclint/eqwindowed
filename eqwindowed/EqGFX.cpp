@@ -58,17 +58,24 @@ namespace EqWindowed
 		}
 		return result;
 	}
+	HRESULT WINAPI hBeginScene(IDirect3DDevice8* Device)
+	{
+		//EqGFXHooks->ResetViewport();
+		HRESULT result = EqGFXHooks->hook_BeginScene.original(hBeginScene)(Device);
+		return result;
+	}
 	HRESULT WINAPI hCreateDevice(IDirect3D8* pD3D, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters, IDirect3DDevice8** ppReturnedDeviceInterface)
 	{
-		EqGFXHooks->present = *pPresentationParameters;
-		EqGFXHooks->present.Windowed = true;
-		EqGFXHooks->present.hDeviceWindow = Wnd->Handle;
+		pPresentationParameters->Windowed = true;
+		pPresentationParameters->hDeviceWindow = Wnd->Handle;
 		std::cout << "Create device hook " << EqGFXHooks->present.BackBufferFormat << std::endl;
-		HRESULT result = EqGFXHooks->hook_CreateDevice.original(hCreateDevice)(pD3D, Adapter, DeviceType, Wnd->Handle, BehaviorFlags, &EqGFXHooks->present, ppReturnedDeviceInterface);
+		HRESULT result = EqGFXHooks->hook_CreateDevice.original(hCreateDevice)(pD3D, Adapter, DeviceType, Wnd->Handle, BehaviorFlags, pPresentationParameters, ppReturnedDeviceInterface);
+		EqGFXHooks->present = *pPresentationParameters;
 		if (SUCCEEDED(result))
 		{
 			void** vtable = *(void***)*ppReturnedDeviceInterface;
 			EqGFXHooks->hook_Reset = VTableHook(vtable, 14, hReset, true);
+			EqGFXHooks->hook_BeginScene = VTableHook(vtable, 35, hBeginScene, true);
 			Wnd->SetClientSize(EqGFXHooks->present.BackBufferWidth, EqGFXHooks->present.BackBufferHeight);
 			EqMainHooks->backbuffer_resolution.width = EqGFXHooks->present.BackBufferWidth;
 			EqMainHooks->backbuffer_resolution.height = EqGFXHooks->present.BackBufferHeight;
@@ -93,7 +100,135 @@ namespace EqWindowed
 		std::cout << "Set cursor " << h << std::endl;
 		return h;
 	}
+	//void EqGFX::ResetViewport()
+	//{
+	//	if (reset_viewport)
+	//	{
+	//		IDirect3DSurface8* depthStencil = nullptr;
+	//		IDirect3DSurface8* backBuffer = nullptr;
+	//		device->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
+	//		device->GetDepthStencilSurface(&depthStencil);
 
+	//		if (depthStencil != NULL) depthStencil->Release();
+	//		if (backBuffer != NULL) backBuffer->Release();
+
+	//		RECT rect;
+	//		GetClientRect(Wnd->Handle, &rect);
+	//		int windowWidth = rect.right - rect.left;
+	//		int windowHeight = rect.bottom - rect.top;
+
+	//		// Calculate aspect ratios
+	//		float desiredAspectRatio = (float)EqMainHooks->backbuffer_resolution.width / EqMainHooks->backbuffer_resolution.height; // Your game's intended resolution (e.g., 800/600 = 1.333)
+	//		float windowAspectRatio = (float)windowWidth / windowHeight;
+
+	//		// Calculate scaling and offsets for letterboxing/pillarboxing
+	//		float scaleX = 1.0f;
+	//		float scaleY = 1.0f;
+	//		int offsetX = 0;
+	//		int offsetY = 0;
+
+	//		if (windowAspectRatio > desiredAspectRatio) {
+	//			// Letterboxing (black bars top/bottom)
+	//			scaleY = desiredAspectRatio / windowAspectRatio;
+	//			offsetY = (int)(windowHeight * (1.0f - scaleY) / 2.0f);
+	//		}
+	//		else if (windowAspectRatio < desiredAspectRatio) {
+	//			// Pillarboxing (black bars left/right)
+	//			scaleX = windowAspectRatio / desiredAspectRatio;
+	//			offsetX = (int)(windowWidth * (1.0f - scaleX) / 2.0f);
+	//		}
+
+	//		// Set the back buffer to the window size
+	//		present.BackBufferWidth = windowWidth;
+	//		present.BackBufferHeight = windowHeight;
+	//		HRESULT hr = device->Reset(&present);
+
+	//		if (FAILED(hr)) {
+	//			// Handle error
+	//			std::cout << "Reset Failed" << hr << std::endl;
+	//		}
+	//		else
+	//		{
+	//			//Recreate resources
+	//			if (FAILED(device->CreateDepthStencilSurface(windowWidth, windowHeight, D3DFMT_D16, D3DMULTISAMPLE_NONE, &depthStencil)))
+	//			{
+	//				std::cout << "CreateDepthStencilSurface Failed" << hr << std::endl;
+	//			}
+	//			if (FAILED(device->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &backBuffer)))
+	//			{
+	//				std::cout << "GetBackBuffer Failed" << hr << std::endl;
+	//			}
+	//			device->SetRenderTarget(backBuffer, depthStencil);
+	//			//Set Viewport after resize
+	//			D3DVIEWPORT8 viewport;
+	//			viewport.X = offsetX;
+	//			viewport.Y = offsetY;
+	//			viewport.Width = (int)(windowWidth * scaleX);
+	//			viewport.Height = (int)(windowHeight * scaleY);
+	//			viewport.MinZ = 0.0f;
+	//			viewport.MaxZ = 1.0f;
+
+	//			device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+	//			device->SetViewport(&viewport);
+	//		}
+
+	//		//device->GetDepthStencilSurface()
+	//		//float desiredAspectRatio = (float)EqMainHooks->backbuffer_resolution.width / EqMainHooks->backbuffer_resolution.height;
+	//		//RECT clientRect;
+	//		//GetClientRect(Wnd->Handle, &clientRect);
+	//		//int windowWidth = clientRect.right - clientRect.left;
+	//		//int windowHeight = clientRect.bottom - clientRect.top;
+	//		//float windowAspectRatio = (float)windowWidth / windowHeight;
+
+	//		//std::cout << "Reset viewport " << std::dec << EqMainHooks->backbuffer_resolution.width << "x" << EqMainHooks->backbuffer_resolution.height << std::endl;
+	//		//std::cout << "Client Rect" << std::dec << windowWidth << "x" << windowHeight << std::endl;
+	//		//std::cout << "WindowAspectRatio" << std::dec << windowAspectRatio << " Game Aspect Ratio " << desiredAspectRatio << std::endl;
+
+	//		//float scaleX = 1.0f;
+	//		//float scaleY = 1.0f;
+	//		//int offsetX = 0;
+	//		//int offsetY = 0;
+
+	//		//if (windowAspectRatio > desiredAspectRatio) {
+	//		//	// Letterboxing
+	//		//	scaleY = desiredAspectRatio / windowAspectRatio;
+	//		//	offsetY = (int)(windowHeight * (1.0f - scaleY) / 2.0f);
+	//		//}
+	//		//else if (windowAspectRatio < desiredAspectRatio) {
+	//		//	// Pillarboxing
+	//		//	scaleX = windowAspectRatio / desiredAspectRatio;
+	//		//	offsetX = (int)(windowWidth * (1.0f - scaleX) / 2.0f);
+	//		//}
+	//		//D3DVIEWPORT8 viewport;
+	//		//viewport.X = offsetX;
+	//		//viewport.Y = offsetY;
+	//		//viewport.Width = (int)(windowWidth * scaleX);
+	//		//viewport.Height = (int)(windowHeight * scaleY);
+	//		//viewport.MinZ = 0.0f;
+	//		//viewport.MaxZ = 1.0f;
+
+
+	//		////EqViewPort* eqv = (EqViewPort*)0x798548;
+	//		////eqv->x = viewport.X;
+	//		////eqv->y = viewport.Y;
+	//		////eqv->width = viewport.Width;
+	//		////eqv->height = viewport.Height;
+
+	//		//EqGFXHooks->present.BackBufferWidth = viewport.Width;
+	//		//EqGFXHooks->present.BackBufferHeight = viewport.Height;
+	//		//HRESULT hr = device->Reset(&EqGFXHooks->present); // Reset the device
+	//		//if (FAILED(hr)) {
+	//		//	std::cerr << "Reset failed: " << hr << std::endl;
+	//		//}
+
+	//		//device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+	//		//hr = device->SetViewport(&viewport);
+	//		//if (FAILED(hr)) {
+	//		//	std::cerr << "SetViewport failed: " << hr << std::endl;
+	//		//}
+	//		reset_viewport = false;
+	//	}
+	//}
 	EqGFX::EqGFX(HMODULE handle)
 	{
 		Console::CreateConsole();
