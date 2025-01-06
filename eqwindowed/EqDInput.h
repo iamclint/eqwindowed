@@ -33,6 +33,7 @@ namespace EqWindowed
 		VTableHook hook_ReleaseDinput;
 		void init(HMODULE handle);
 		std::vector<DWORD> key_releases = { 42, 54, 56, 184 };
+		void ResetCursorLocation();
 		EqDInput();
 	};
 }

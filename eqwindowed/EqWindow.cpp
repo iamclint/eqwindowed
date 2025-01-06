@@ -10,7 +10,39 @@ namespace EqWindowed
 		//{ Maximized, WS_OVERLAPPEDWINDOW | WS_VISIBLE },
 		{ MaximizedBorderless, WS_POPUPWINDOW | WS_VISIBLE }
 	};
+	//struct EQCHARINFO
+	//{
+	//	/* 0x0000 */ BYTE Unknown0000[2];
+	//	/* 0x0002 */ CHAR Name[64]; // [0x40]
+	//	/* 0x0042 */ CHAR LastName[70]; // [0x46] ; surname or title
+	//};
+	//struct Entity
+	//{
+	//	/* 0x0000 */ BYTE Unknown0000; // always equals 0x03
+	//	/* 0x0001 */ CHAR Name[30]; // [0x1E]
+	//	/* 0x001F */ BYTE Unknown001F[37];
+	//	/* 0x0044 */ DWORD ZoneId; // EQ_ZONE_ID_x
+	//	/* 0x0048 */ FLOAT Position[3];
+	//	/* 0x0054 */ FLOAT Heading; // camera view left/right, yaw
+	//	/* 0x0058 */ FLOAT Unk;
+	//	/* 0x005C */ FLOAT MovementSpeed;
+	//	/* 0x0060 */ FLOAT MovementSpeedY;
+	//	/* 0x0064 */ FLOAT MovementSpeedX;
+	//	/* 0x0068 */ FLOAT MovementSpeedZ;
+	//	/* 0x006C */ FLOAT MovementSpeedHeading;
+	//	/* 0x0070 */ FLOAT Unknown0070;
+	//	/* 0x0074 */ FLOAT Pitch; // camera view up/down
+	//	/* 0x0078 */ Entity* Prev;
+	//	/* 0x007C */ Entity* Next;
+	//	/* 0x0080 */ PVOID Unknown0080;
+	//	/* 0x0084 */ PVOID ActorInfo;
+	//	/* 0x0088 */ EQCHARINFO* CharInfo;
 
+	//};
+	//Entity* get_self()
+	//{
+	//	return *(Entity**)0x7F94CC;
+	//}
 	void printWindowStyle(WindowStyle style) {
 		switch (style) {
 		case WindowStyle::Windowed:
@@ -23,9 +55,21 @@ namespace EqWindowed
 			std::cout << "Unknown Window Style" << std::endl;
 		}
 	}
+	//void setWindowTitle()
+	//{
+	//	static ULONGLONG LastSetTime = 0;
+
+	//	if (get_self() && get_self()->CharInfo && GetTickCount64()-LastSetTime>10000)
+	//	{
+	//		std::string title = "Everquest: " + std::string(get_self()->CharInfo->Name);
+	//		SetWindowTextA(Wnd->Handle, title.c_str());
+	//		LastSetTime = GetTickCount64();
+	//	}
+	//}
 
 	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		Console::CreateConsole();
+	//	setWindowTitle();
 		static bool mouse_was_exited = false;
 		//std::cout << "msg: " << msg << " wParam: " << wParam << " lParam: " << lParam << std::endl;
 		static bool isCursorHidden = false;
@@ -33,6 +77,8 @@ namespace EqWindowed
 		case WM_SETCURSOR: {
 			// Check if the cursor is in the client area
 			if (LOWORD(lParam) == HTCLIENT) {
+				if (!Wnd->isFocused && isCursorHidden)
+					DInput->ResetCursorLocation();
 				if (!isCursorHidden) {
 					SetCursor(NULL); // Hide the cursor
 					isCursorHidden = true; // Update state
@@ -119,23 +165,61 @@ namespace EqWindowed
 		}
 		case WM_MOUSEMOVE:
 		{
-			if (mouse_was_exited)
+			static POINT leftButtonDownPos = { 0, 0 };
+			static POINT rightButtonDownPos = { 0, 0 };
+			static bool leftButtonPressed = false;
+			static bool rightButtonPressed = false;
+
+			// Check for mouse button state
+			if (GetAsyncKeyState(VK_LBUTTON) & 0x8000) { // Left button is down
+				if (!leftButtonPressed) {
+					// Store initial cursor position when left button is first pressed
+					GetCursorPos(&leftButtonDownPos);
+					leftButtonPressed = true;
+				}
+				else {
+					// Reset cursor position to where left button was originally pressed
+					SetCursorPos(leftButtonDownPos.x, leftButtonDownPos.y);
+				}
+			}
+			else {
+				leftButtonPressed = false; // Left button released
+			}
+
+			if (GetAsyncKeyState(VK_RBUTTON) & 0x8000) { // Right button is down
+				if (!rightButtonPressed) {
+					// Store initial cursor position when right button is first pressed
+					GetCursorPos(&rightButtonDownPos);
+					rightButtonPressed = true;
+				}
+				else {
+					// Reset cursor position to where right button was originally pressed
+					SetCursorPos(rightButtonDownPos.x, rightButtonDownPos.y);
+				}
+			}
+			else 
 			{
+
+				rightButtonPressed = false; // Right button released
+			}
+
+			if (mouse_was_exited && GetForegroundWindow()==Wnd->Handle) {
 				Wnd->isFocused = true;
 				mouse_was_exited = false;
 				GetCursorPos(&DInput->exit_cursor_pos);
 				if (DInput->mouse)
 					DInput->mouse->Acquire();
 				std::cout << "Cursor Enter pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
-
 			}
 
 			// Register for mouse leave events
 			TRACKMOUSEEVENT tme;
 			tme.cbSize = sizeof(TRACKMOUSEEVENT);
 			tme.dwFlags = TME_LEAVE;
-			tme.hwndTrack = Wnd->Handle;  // The window to track
+			tme.hwndTrack = Wnd->Handle; // The window to track
 			TrackMouseEvent(&tme);
+
+			break;
 
 
 			break;

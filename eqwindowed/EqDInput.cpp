@@ -84,6 +84,7 @@ namespace EqWindowed
 				data[1].dwOfs = DIK_LCONTROL;
 				data[2].dwOfs = DIK_LSHIFT;
 				data[3].dwOfs = DIK_RSHIFT;
+				data[4].dwOfs = DIK_ESCAPE;
 
 			}
 			DInput->need_keystate_reset = false;
@@ -92,7 +93,7 @@ namespace EqWindowed
 
 		return result;
 	}
-	void ResetCursorLocation()
+	void EqDInput::ResetCursorLocation()
 	{
 		GetCursorPos(&DInput->exit_cursor_pos);
 		ScreenToClient(Wnd->Handle, &DInput->exit_cursor_pos);
@@ -105,7 +106,7 @@ namespace EqWindowed
 	{
 		if (Wnd->isFocused)
 		{
-			ResetCursorLocation();
+			DInput->ResetCursorLocation();
 			DInput->hook_Acquire.original(hMouseAcquire)(device);
 			DInput->need_mousestate_reset = true;
 		}
@@ -123,7 +124,7 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hMouseUnacquire(LPDIRECTINPUTDEVICE8W device)
 	{
-		ResetCursorLocation();
+		DInput->ResetCursorLocation();
 		DInput->hook_Unacquire.original(hMouseUnacquire)(device);
 		return DI_OK;
 	}
