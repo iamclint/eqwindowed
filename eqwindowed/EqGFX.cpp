@@ -2,6 +2,7 @@
 #include "EqGFX.h"
 #include "EqWindowed.h"
 #include "EqMain.h"
+#include "Ini.h"
 #include <iostream>
 #include "Console.h"
 /*

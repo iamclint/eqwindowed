@@ -156,6 +156,7 @@
     <ClInclude Include="EqWindowed.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="IATHook.h" />
+    <ClInclude Include="Ini.h" />
     <ClInclude Include="ModuleHandler.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="VTableHook.h" />

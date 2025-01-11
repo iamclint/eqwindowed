@@ -3,6 +3,7 @@
 #include "EqWindowed.h"
 #include <iostream>
 #include "Console.h"
+#include "Ini.h"
 namespace EqWindowed
 {
 	std::unordered_map<WindowStyle, DWORD> WindowStyles = {
@@ -306,7 +307,14 @@ namespace EqWindowed
 
 	}
 	void EqWindow::SetClientSize(int clientWidth, int clientHeight) {
-		// Get the current window styles
+
+		std::stringstream ss;
+		ss << clientWidth << "by" << clientHeight;
+		int x = INI::getValue<int>("Positions", ss.str() + "X", "./eqw.ini");
+		int y = INI::getValue<int>("Positions", ss.str() + "Y", "./eqw.ini");
+		std::cout << "Set window position: " << x << " " << y << " ini val: " << ss.str() << std::endl;
+		SetWindowPos(Handle, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+		// Get the current window styles 
 		DWORD dwStyle = (DWORD)GetWindowLong(Handle, GWL_STYLE);
 		DWORD dwExStyle = (DWORD)GetWindowLong(Handle, GWL_EXSTYLE);
 
