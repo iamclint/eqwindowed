@@ -119,11 +119,13 @@ namespace EqWindowed
 	}
 	HRESULT WINAPI hKeyboardUnacquire(LPDIRECTINPUTDEVICE8W device)
 	{
+		std::cout << "Keyboard Unacquire" << std::endl;
 		DInput->hook_Unacquire.original(hKeyboardAcquire)(device);
 		return DI_OK;
 	}
 	HRESULT WINAPI hMouseUnacquire(LPDIRECTINPUTDEVICE8W device)
 	{
+		std::cout << "Mouse Unacquire" << std::endl;
 		DInput->ResetCursorLocation();
 		DInput->hook_Unacquire.original(hMouseUnacquire)(device);
 		return DI_OK;

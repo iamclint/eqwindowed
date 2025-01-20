@@ -227,7 +227,7 @@ namespace EqWindowed
 		}
 		case WM_MOUSELEAVE:
 		{
-			Wnd->isFocused = false;
+			//Wnd->isFocused = false;
 			mouse_was_exited = true;
 			GetCursorPos(&DInput->exit_cursor_pos);
 			std::cout << "Cursor exit pos " << DInput->exit_cursor_pos.x << " " << DInput->exit_cursor_pos.y << std::endl;
